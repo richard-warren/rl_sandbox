@@ -10,14 +10,13 @@ refactoring
 - [X] default maze library
 - [X] random start state option
 - [X] value function visualization
-- [ ] add 'traps'
+- [ ] classes for solutions
 - [ ] save rendering to disk for gifs...
-- [ ] optional pyglet redering
 - [ ] documentation
-- [ ] how to deal with mutable default arguments
+- [ ] jupyter notebook blog
 
 solutions
 
 - [ ] q learning
+- [ ] sarsa
 - [ ] monte carlo
-- [ ] something to encourage exploration?

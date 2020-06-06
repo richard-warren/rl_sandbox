@@ -12,7 +12,7 @@ alpha = .05
 gamma = 1
 epsilon = .1
 
-episodes = 10000
+episodes = 100000
 render_episodes = 500  # render once every render_episodes
 max_steps = 100  # max steps per episode
 
