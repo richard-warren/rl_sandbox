@@ -11,6 +11,7 @@ class Control:
         self.env = env
         self.Q = np.full((env.observation_space.n, env.action_space.n), Q_init, dtype='float64')
         self.Q_fig = None
+        self.Q_init = Q_init
 
     def select_action(self, s, epsilon):
         a = np.argmax(self.Q[s])
@@ -21,26 +22,29 @@ class Control:
     def train(self):
         raise NotImplementedError('"train" method must be defined for Control subclasses')
 
-    def plotQ(self):
+    def plotQ(self, live_update=False):
 
-        if not self.Q_fig:
-            self.Q_fig, self.axes = plt.subplots(5, 1, figsize=(4, 5))
+        if not self.Q_fig or not live_update:
+            self.Q_fig, self.axes = plt.subplots(1, 5, figsize=(10, 50))
             self.ims = []
             for i, l in zip(range(5), ['max', 'left', 'right', 'up', 'down']):
                 self.ims.append(self.axes[i].imshow(np.zeros(self.env.shape), cmap=plt.get_cmap('hot')))
-                self.axes[i].set(ylabel=l, yticks=[], xticks=[])
-        else:
-            Q_max = np.max(np.reshape(self.Q, (self.env.shape[0], self.env.shape[1], -1)), axis=2)
-            lims = [np.min(self.Q), np.max(self.Q)]
-            Q_max[self.env.walls] = lims[0]  # set the walls equal to the darkest color
-            self.ims[0].set_data(Q_max)
-            self.ims[0].set_clim(lims[0], lims[1])
-            for j in range(4):
-                im = np.reshape(self.Q[:, j], self.env.shape)
-                im[self.env.walls] = lims[0]  # set the walls equal to the darkest color
-                self.ims[j + 1].set_data(im)
-                self.ims[j + 1].set_clim(lims[0], lims[1])
-            plt.pause(.1)
+                self.axes[i].set(xlabel=l, yticks=[], xticks=[])
+
+        Q_max = np.max(np.reshape(self.Q, (self.env.shape[0], self.env.shape[1], -1)), axis=2)
+        lims = [np.min(self.Q), np.max(self.Q)]
+        Q_max[self.env.walls] = lims[0]  # set the walls equal to the darkest color
+        self.ims[0].set_data(Q_max)
+        self.ims[0].set_clim(lims[0], lims[1])
+        for j in range(4):
+            im = np.reshape(self.Q[:, j], self.env.shape)
+            im[self.env.walls] = lims[0]  # set the walls equal to the darkest color
+            self.ims[j + 1].set_data(im)
+            self.ims[j + 1].set_clim(lims[0], lims[1])
+        plt.pause(.1)
+
+    def resetQ(self):
+        self.Q = np.full(self.Q.shape, self.Q_init, dtype='float64')
 
 
 
@@ -54,13 +58,14 @@ class QLearning(Control):
             episodes=10000,
             max_steps=100,
             episodes_per_render=None,
-            verbose=True,
+            verbose=False,
             show_policy=False):
 
-        steps, reward = [], []  # number of steps per episode
+        steps, rewards = [], []  # number of steps per episode
 
         for i in range(episodes):
 
+            rewards.append(0)  # keep track of reward per episode
             s0 = self.env.reset()
             is_rendering = episodes_per_render and (i % episodes_per_render) == 0 and i > 0
             if is_rendering:
@@ -75,6 +80,7 @@ class QLearning(Control):
 
                 # take action, observe next state
                 s1, r, done, info = self.env.step(a)
+                rewards[-1] += r
 
                 # update Q
                 target = r if done else r + gamma * np.max(self.Q[s1])
@@ -90,7 +96,8 @@ class QLearning(Control):
                     if verbose:
                         print('{} steps in episode {}'.format(t+1, i))
                     break
-        return steps
+
+        return steps, rewards
 
 
 
@@ -107,12 +114,14 @@ class MonteCarlo(Control):
             episodes=10000,
             max_steps=100,
             episodes_per_render=None,
-            verbose=True,
+            verbose=False,
             show_policy=False):
 
-        steps, reward = [], []  # number of steps per episode
+        steps, rewards = [], []  # number of steps per episode
 
         for i in range(episodes):
+
+            rewards.append(0)  # keep track of reward per episode
 
             # generate trajectory
             n = np.zeros(self.Q.shape, dtype='int')  # number of times each state-action pair is encountered
@@ -132,6 +141,7 @@ class MonteCarlo(Control):
 
                 # take action, observe next state
                 s_temp, r_temp, done, info = self.env.step(a[-1])
+                rewards[-1] += r_temp
                 s.append(s_temp)
                 r.append(r_temp)
 
@@ -148,10 +158,10 @@ class MonteCarlo(Control):
 
             # update returns
             G = 0
-            for t in range(len(s)-1, 0, -1):
+            for t in range(len(s)-1, -1, -1):
                 G = gamma*G + r[t]
                 self.Q[s[t],a[t]] = self.Q[s[t],a[t]] + alpha * (G - self.Q[s[t],a[t]])
                 # n[s[t],a[t]] = n[s[t],a[t]] + 1
                 # self.Q[s[t],a[t]] = self.Q[s[t],a[t]] + (1/n[s[t],a[t]]) * (G - self.Q[s[t],a[t]])  # true average
 
-        return steps
+        return steps, rewards
