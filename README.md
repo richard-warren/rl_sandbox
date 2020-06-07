@@ -20,3 +20,4 @@ solutions
 - [ ] q learning
 - [ ] sarsa
 - [ ] monte carlo
+- [ ] n-step q learning or sarsa?

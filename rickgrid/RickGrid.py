@@ -85,7 +85,7 @@ class RickGrid(gym.Env):
         return state
 
 
-    def render(self, mode='human'):
+    def render(self, mode='human', Q=None):
 
         # shift all coordinates +1 because graphics will include walls surrounding maze
         coords = self.state_to_coords(self.state)
@@ -110,8 +110,11 @@ class RickGrid(gym.Env):
                 elif is_terminal[r,c]:
                     symbol = '{:2d}'.format(self.rewards[r-1,c-1])
                 else:
-                    # symbol = '{:2d}'.format(self.rewards[r-1,c-1])  # uncomment to show non-terminal values in maze
-                    symbol = '  '
+                    if Q is None:
+                        symbol = '  '
+                    else:
+                        s = self.coords_to_state((r-1,c-1))
+                        symbol = [' ⇦',' ⇨','⇧ ','⇩ '][np.argmax(Q[s])]
                 maze_str[r] += (symbol)
         print(''.join(maze_str))
 
