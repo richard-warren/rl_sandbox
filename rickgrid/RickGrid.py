@@ -121,8 +121,11 @@ class RickGrid(gym.Env):
         return maze_str
 
 
-    def reset(self):
-        self.state = self.get_random_state() if self.random_start else self.start_state
+    def reset(self, start_coords=None):
+        if not start_coords:
+            self.state = self.get_random_state() if self.random_start else self.start_state
+        else:
+            self.state = self.coords_to_state(start_coords)
         return self.state
 
 
