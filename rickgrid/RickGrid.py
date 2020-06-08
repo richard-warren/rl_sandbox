@@ -7,7 +7,7 @@ class RickGrid(gym.Env):
 
     def __init__(self,
                  walls=np.zeros((10,10), dtype='bool'),
-                 rewards=[[9,9,10]],  # [column, row, reward]
+                 terminal_states=[[9, 9, 10]],  # [column, row, reward]
                  nonterminal_reward=-1,
                  start_coords=[0,0],
                  random_start=False
@@ -24,9 +24,9 @@ class RickGrid(gym.Env):
         # construct reward and is_terminal matrices
         self.rewards = np.full(np.shape(walls), nonterminal_reward)
         self.is_terminal = np.zeros(np.shape(walls), dtype='bool')
-        for i in range(len(rewards)):
-            self.rewards[rewards[i][0], rewards[i][1]] = rewards[i][2]
-            self.is_terminal[rewards[i][0], rewards[i][1]] = True
+        for i in range(len(terminal_states)):
+            self.rewards[terminal_states[i][0], terminal_states[i][1]] = terminal_states[i][2]
+            self.is_terminal[terminal_states[i][0], terminal_states[i][1]] = True
 
         # get start state
         if random_start:
@@ -114,7 +114,9 @@ class RickGrid(gym.Env):
                         symbol = '  '
                     else:
                         s = self.coords_to_state((r-1,c-1))
-                        symbol = [' ⇦',' ⇨','⇧ ','⇩ '][np.argmax(Q[s])]
+                        # symbol = [' ⇦',' ⇨','⇧ ','⇩ '][np.argmax(Q[s])]
+                        # symbol = [' ←', ' →', '↑ ', '↓ '][np.argmax(Q[s])]
+                        symbol = [' ◃', ' ▹', '▵ ', '▿ '][np.argmax(Q[s])]
                 maze_str[r] += (symbol)
         print(''.join(maze_str))
 

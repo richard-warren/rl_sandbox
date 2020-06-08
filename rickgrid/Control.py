@@ -168,13 +168,16 @@ class MonteCarlo(Control):
             for t in range(len(s)-1, -1, -1):
                 G = gamma*G + r[t]
 
-                # for non-stationary averaging
+                # non-stationary averaging
                 self.Q[s[t],a[t]] = self.Q[s[t],a[t]] + alpha * (G - self.Q[s[t],a[t]])
 
-                # for true averaging
-                # if n[s[t],a[t]]==1:
+                # true averaging without bias
+                # if self.Q[s[t],a[t]] is not self.Q_init:
                 #     self.Q[s[t],a[t]] = self.Q[s[t],a[t]] + (1/n[s[t],a[t]]) * (G - self.Q[s[t],a[t]])  # true average
                 # else:
                 #     self.Q[s[t], a[t]] = G
+
+                # true averaging with initialization bias
+                # self.Q[s[t], a[t]] = self.Q[s[t], a[t]] + (1 / n[s[t], a[t]]) * (G - self.Q[s[t], a[t]])  # true average
 
         return steps, rewards
