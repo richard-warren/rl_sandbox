@@ -1,23 +1,12 @@
-# reinforcement learning bootcap
-Projects for learning reinforcement learning
+# gridworld
+This is an implementation of gridworld along with some control methods. See [the demo notebook](https://github.com/rwarren2163/rl_sandbox/blob/master/demo.ipynb) for usage and experiment results. 
 
-## projects
-- grid world
-
-## todo
+## todo(ne)
 refactoring
 - [X] bump into walls visualization
 - [X] default maze library
 - [X] random start state option
 - [X] value function visualization
-- [ ] classes for solutions
-- [ ] save rendering to disk for gifs...
-- [ ] documentation
-- [ ] jupyter notebook blog
-
-solutions
-
-- [ ] q learning
-- [ ] sarsa
-- [ ] monte carlo
-- [ ] n-step q learning or sarsa?
+- [X] policy visualization
+- [X] classes for solutions
+- [X] jupyter notebook demo

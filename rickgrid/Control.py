@@ -36,8 +36,8 @@ class Control:
                     break
 
         Q_max = np.max(np.reshape(self.Q, (self.env.shape[0], self.env.shape[1], -1)), axis=2)
-        lims = [np.min(self.Q), np.max(self.Q)]
-        Q_max[self.env.walls] = lims[0]  # set the walls equal to the darkest color
+        lims = [np.min(self.Q), np.max(self.Q)] if not max_only else [np.min(Q_max), np.max(Q_max)]
+        Q_max[self.env.walls] = lims[0]   # set the walls equal to the darkest color
         self.ims[0].set_data(Q_max)
         self.ims[0].set_clim(lims[0], lims[1])
         if not max_only:

@@ -17,7 +17,7 @@ from rickgrid import Control
 #                nonterminal_reward=-1)   # -1 per non-terminal step
 
 
-env = gym.make('RickGrid-v0', **mazes[0])
+env = gym.make('RickGrid-v0', **mazes[0], random_start=True)
 
 # set up Monte Carlo object
 ctl_mc = Control.MonteCarlo(env)
