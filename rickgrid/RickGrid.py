@@ -85,7 +85,7 @@ class RickGrid(gym.Env):
         return state
 
 
-    def render(self, mode='human', Q=None):
+    def render(self, mode='human', Q=None, arrows=False):
 
         # shift all coordinates +1 because graphics will include walls surrounding maze
         coords = self.state_to_coords(self.state)
@@ -114,10 +114,7 @@ class RickGrid(gym.Env):
                         symbol = '  '
                     else:
                         s = self.coords_to_state((r-1,c-1))
-                        # symbol = [' ⇦',' ⇨','⇧ ','⇩ '][np.argmax(Q[s])]
-                        # symbol = [' ←', ' →', '↑ ', '↓ '][np.argmax(Q[s])]
-                        # symbol = [' ◃', ' ▹', '▵ ', '▿ '][np.argmax(Q[s])]
-                        symbol = [' L', ' R', ' U', ' D'][np.argmax(Q[s])]
+                        symbol = [' ◃', ' ▹', '▵ ', '▿ '][np.argmax(Q[s])] if arrows else [' L', ' R', ' U', ' D'][np.argmax(Q[s])]
                 maze_str[r] += (symbol)
         print(''.join(maze_str))
 
