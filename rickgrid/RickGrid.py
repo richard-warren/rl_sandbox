@@ -85,7 +85,7 @@ class RickGrid(gym.Env):
         return state
 
 
-    def render(self, mode='human', Q=None, arrows=False):
+    def render(self, mode='human', Q=None, arrows=True):
 
         # shift all coordinates +1 because graphics will include walls surrounding maze
         coords = self.state_to_coords(self.state)
