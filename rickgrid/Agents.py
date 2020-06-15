@@ -60,6 +60,7 @@ class Agent:
         im[self.env.walls] = np.min(im)
         plt.imshow(im, cmap='hot')
         plt.axis('off')
+        plt.pause(.01)
 
 
 class QLearning(Agent):
