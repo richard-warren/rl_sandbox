@@ -104,7 +104,7 @@ class RickGrid(gym.Env):
         state = self.coords_to_state([valid_inds[0][i], valid_inds[1][i]])
         return state
 
-    def render(self, mode='human', Q=None, arrows=True):
+    def render(self, mode='human', policy=None, arrows=True):
         # shift all coordinates +1 because graphics will include walls surrounding maze
         loc = self.state_to_coords(self.state)
         loc = [loc[0]+1, loc[1]+1]
@@ -127,11 +127,11 @@ class RickGrid(gym.Env):
                 elif is_terminal[r,c] or is_goody[r,c]:
                     symbol = '{:2d}'.format(self.rewards[r-1,c-1])
                 else:
-                    if Q is None:
+                    if policy is None:
                         symbol = '  '
                     else:
                         s = self.coords_to_state((r-1,c-1))
-                        symbol = [' ◃', ' ▹', '▵ ', '▿ '][np.argmax(Q[s])] if arrows else [' L', ' R', ' U', ' D'][np.argmax(Q[s])]
+                        symbol = [' ◃', ' ▹', '▵ ', '▿ '][policy[s]] if arrows else [' L', ' R', ' U', ' D'][policy[s]]
                 maze_str[r] += (symbol)
         print(''.join(maze_str))
 

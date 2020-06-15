@@ -1,7 +1,7 @@
 # gridworld
 This is an implementation of gridworld along with some control methods. See [the demo notebook](https://github.com/rwarren2163/rl_sandbox/blob/master/demo.ipynb) for usage and experiment results. 
 
-## todo
+#### todo
 - [ ] notebook ((q, mc, dp, exact dp), (experience replay effects), (qinit, rand stars, q with noise, ucb) )
 - [ ] refactor RickGrid, which is getting kind of messy
 - [X] nicer way of saving default mazes
@@ -15,3 +15,18 @@ This is an implementation of gridworld along with some control methods. See [the
 - [X] policy visualization
 - [X] classes for solutions
 - [X] jupyter notebook demo
+
+#### demo
+- [X] gridworld
+- control methods
+    - [X] q learning
+    - [X] mc
+    - dp
+    - exact dp
+- control method comparison
+- explore vs. exploit!
+    - optimistic initialization
+    - random starts (with 'experience replay?')
+    - adding noise
+    - UCB?
+- 
