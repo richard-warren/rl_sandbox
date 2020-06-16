@@ -2,8 +2,9 @@
 This is an implementation of gridworld along with some control methods. See [the demo notebook](https://github.com/rwarren2163/rl_sandbox/blob/master/demo.ipynb) for usage and experiment results. 
 
 #### todo
-- [ ] notebook ((q, mc, dp, exact dp), (experience replay effects), (qinit, rand stars, q with noise, ucb) )
-- [ ] refactor RickGrid, which is getting kind of messy
+- [ ] notebook ((q, mc, dp, exact dp), (experience replay effects), (qinit, rand stars, q with noise, ucb))
+- [ ] refactor RickGrid, which is getting pretty messy
+- [X] make max_steps an attribute of environment instead of agent! this makes more sense...
 - [X] nicer way of saving default mazes
 - [X] read, implement exact dynamic programming
 - [X] proper transition matrices
@@ -21,8 +22,8 @@ This is an implementation of gridworld along with some control methods. See [the
 - control methods
     - [X] q learning
     - [X] mc
-    - dp
-    - exact dp
+    - [X] approximate dp
+    - [X] exact dp
 - control method comparison
 - explore vs. exploit!
     - optimistic initialization

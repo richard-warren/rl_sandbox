@@ -11,7 +11,8 @@ class RickGrid(gym.Env):
                  nonterminal_reward=-1,
                  start_coords=[0,0],
                  random_start=False,
-                 goodies=None
+                 goodies=None,
+                 max_steps=100
                  ):
 
         self.walls = walls
@@ -20,6 +21,8 @@ class RickGrid(gym.Env):
         self.observation_space = gym.spaces.Discrete(walls.size)
         self.start_state = self.coords_to_state(start_coords)
         self.random_start = random_start
+        self.max_steps = max_steps
+        self.time = 0
 
         # construct reward and is_terminal matrices
         self.rewards = np.full(np.shape(walls), nonterminal_reward)
@@ -87,7 +90,8 @@ class RickGrid(gym.Env):
         s0 = self.state
         self.state = self.P[s0, action]
         reward = self.R[s0, action]
-        done = self.D[s0, action]
+        self.time+=1
+        done = self.D[s0, action] or self.time >= self.max_steps
         return self.state, reward, done, {}
 
     def state_to_coords(self, state):
@@ -135,13 +139,12 @@ class RickGrid(gym.Env):
                 maze_str[r] += (symbol)
         print(''.join(maze_str))
 
-        return maze_str
-
     def reset(self, start_coords=None):
         if not start_coords:
             self.state = self.get_random_state() if self.random_start else self.start_state
         else:
             self.state = self.coords_to_state(start_coords)
+        self.time = 0
         return self.state
 
 

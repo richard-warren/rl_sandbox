@@ -27,12 +27,12 @@ class Agent:
         self.n[s0,a] += 1
         return s, a, r, done
 
-    def rollout(self, max_steps=100, epsilon=0, online_update=False, alpha=.05, gamma=1):
+    def rollout(self, epsilon=0, online_update=False, alpha=.05, gamma=1):
         s = self.env.reset()
         states, actions, rewards = [s], [], []
         done = False
 
-        while not done and len(states)<max_steps:
+        while not done:
             if not online_update:
                 s, a, r, done = self.step(epsilon)
             else:
@@ -85,7 +85,7 @@ class QLearning(Agent):
         self.update([s0, s], [a], [r], alpha=alpha, gamma=gamma)
         return s, a, r, done
 
-    def train(self, iterations=1000, max_steps=100, epsilon=0, online_update=True, alpha=.05, gamma=1, replays=1):
+    def train(self, iterations=1000, epsilon=0, online_update=True, alpha=.05, gamma=1, replays=1):
         '''
         train agent
         '''
@@ -93,9 +93,9 @@ class QLearning(Agent):
         steps, reward = [], []  # number of steps and total reward for each iterations
         for i in range(iterations):
             if online_update:
-                r = self.rollout(max_steps=max_steps, epsilon=epsilon, online_update=True, alpha=alpha, gamma=gamma)[2]
+                r = self.rollout(epsilon=epsilon, online_update=True, alpha=alpha, gamma=gamma)[2]
             else:
-                s, a, r = self.rollout(max_steps=max_steps, epsilon=epsilon, online_update=False)
+                s, a, r = self.rollout(epsilon=epsilon, online_update=False)
                 self.update(s, a, r, replays=replays)
             steps.append(len(r))
             reward.append(sum(r))
@@ -117,14 +117,14 @@ class MonteCarlo(Agent):
             else:
                 self.Q[s, a] = self.Q[s, a] + (1 / self.n[s, a]) * (G - self.Q[s, a])  # true average with initialization bia
 
-    def train(self, iterations=1000, max_steps=100, epsilon=0, alpha=None, gamma=1):
+    def train(self, iterations=1000, epsilon=0, alpha=None, gamma=1):
         '''
         train agent
         '''
 
         steps, reward = [], []  # number of steps and total reward for each iterations
         for i in range(iterations):
-            s, a, r = self.rollout(max_steps=max_steps, epsilon=epsilon, online_update=False, gamma=1)
+            s, a, r = self.rollout(epsilon=epsilon, online_update=False, gamma=1)
             self.update(s, a, r, alpha=alpha, gamma=gamma)
             steps.append(len(r))
             reward.append(sum(r))
@@ -144,8 +144,39 @@ class DP_approx(Agent):
                 r = self.env.R[s,a]
                 s_next = self.env.P[s,a]
                 a_next = self.select_action(s_next, epsilon)
-                target = r + gamma * self.Q[s_next, a_next]
+                target = r + gamma * Q_new[s_next, a_next]
                 Q_new[s,a] = Q_new[s,a] + alpha * (target - Q_new[s,a])
         self.Q = Q_new
+
+
+class DP_exact(Agent):
+
+    def __init__(self, env):
+        super().__init__(env)
+        self.V = np.zeros((self.env.observation_space.n, self.env.max_steps + 1))         # (state X time) max value of each state at each time
+        self.A = np.zeros((self.env.observation_space.n, self.env.max_steps), dtype=int)  # best actions to take in each state at each time
+
+    def select_action(self, s, t):
+        return self.A[s,t]
+
+    def step(self, epsilon=None):
+        s0 = self.env.state
+        a = self.select_action(self.env.state, self.env.time)
+        s, r, done = self.env.step(a)[:3]
+        self.n[s0,a] += 1
+        return s, a, r, done
+
+    def solve(self):
+        for i in reversed(range(self.env.max_steps)):
+            for s in range(self.env.observation_space.n):
+                v_next = self.env.R[s] + self.V[self.env.P[s], i + 1]  # R is the reward dynamics; S is the state dynamics
+                self.A[s, i] = np.argmax(v_next)
+                self.V[s, i] = np.max(v_next)
+
+    def show_policy(self, t=0):
+        policy = [self.select_action(s,t) for s in range(self.env.observation_space.n)]  # show the action selected at time 0
+        self.env.render(policy=policy)
+        time.sleep(.05)
+
 
 
