@@ -4,6 +4,7 @@ This is an implementation of gridworld along with some control methods. See [the
 #### todo
 - [ ] notebook ((q, mc, dp, exact dp), (experience replay effects), (qinit, rand stars, q with noise, ucb))
 - [ ] refactor RickGrid, which is getting pretty messy
+- [ ] episode movie?
 - [X] make max_steps an attribute of environment instead of agent! this makes more sense...
 - [X] nicer way of saving default mazes
 - [X] read, implement exact dynamic programming
