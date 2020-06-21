@@ -139,11 +139,11 @@ class RickGrid(gym.Env):
                 maze_str[r] += (symbol)
         print(''.join(maze_str))
 
-    def reset(self, start_coords=None):
-        if not start_coords:
+    def reset(self, start_loc=None):
+        if not start_loc:
             self.state = self.get_random_state() if self.random_start else self.start_state
         else:
-            self.state = self.coords_to_state(start_coords)
+            self.state = self.coords_to_state(start_loc)
         self.time = 0
         return self.state
 
