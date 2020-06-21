@@ -30,5 +30,5 @@ This is an implementation of gridworld along with some control methods. See [the
     - [X] optimistic initialization
     - [X] random starts
     - [X] exact DP
-    - adding noise
-- control method comparison? 
+    - [X] adding noise
+- replay order comparison 

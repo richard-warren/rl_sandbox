@@ -1,6 +1,6 @@
 import gym
 import numpy as np
-import ipdb
+import platform
 
 
 class RickGrid(gym.Env):
@@ -108,7 +108,7 @@ class RickGrid(gym.Env):
         state = self.coords_to_state([valid_inds[0][i], valid_inds[1][i]])
         return state
 
-    def render(self, mode='human', policy=None, arrows=True):
+    def render(self, mode='human', policy=None):
         # shift all coordinates +1 because graphics will include walls surrounding maze
         loc = self.state_to_coords(self.state)
         loc = [loc[0]+1, loc[1]+1]
@@ -135,7 +135,8 @@ class RickGrid(gym.Env):
                         symbol = '  '
                     else:
                         s = self.coords_to_state((r-1,c-1))
-                        symbol = [' ◃', ' ▹', '▵ ', '▿ '][policy[s]] if arrows else [' L', ' R', ' U', ' D'][policy[s]]
+                        symbol = [' ◃', ' ▹', '▵ ', '▿ '][policy[s]]
+                        # symbol = [' <', ' >', '^ ', 'v '][policy[s]]
                 maze_str[r] += (symbol)
         print(''.join(maze_str))
 
@@ -146,8 +147,3 @@ class RickGrid(gym.Env):
             self.state = self.coords_to_state(start_loc)
         self.time = 0
         return self.state
-
-
-
-
-

@@ -16,8 +16,7 @@ class Agent:
         if np.random.uniform() < epsilon:
             a = np.random.randint(0, self.env.action_space.n)
         else:
-            # break ties randomly
-            a = np.random.choice(np.flatnonzero(self.Q[state]==np.max(self.Q[state])))
+            a = np.random.choice(np.flatnonzero(self.Q[state]==np.max(self.Q[state])))  # break ties randomly
         return a
 
     def step(self, epsilon=0):
@@ -65,13 +64,22 @@ class Agent:
 
 class QLearning(Agent):
 
-    def update(self, states, actions, rewards, replays=1, alpha=.05, gamma=1):
+    def update(self, states, actions, rewards, replays=1, alpha=.05, gamma=1, update_order='forward'):
         '''
         update Q function based on trajectory of states, actions, and rewards
         '''
 
         for i in range(replays):
-            for s, s_next, a, r in zip(reversed(states[:-1]), reversed(states[1:]), reversed(actions), reversed(rewards)):  # updates start at the end of rollout
+            lists = [states[:-1], states[1:], actions, rewards, list(range(len(actions)))]
+            if update_order=='forward':
+                zipped = zip(*lists)
+            elif update_order=='reverse':
+                zipped = zip(*[reversed(x) for x in lists])
+            elif update_order=='random':
+                inds = np.random.choice(list(range(len(actions))), size=len(actions), replace=False)
+                zipped = zip(*[np.array(x)[inds] for x in lists])
+
+            for s, s_next, a, r, idx in zipped:
                 target = r + gamma * np.max(self.Q[s_next])
                 self.Q[s,a] = self.Q[s,a] + alpha * (target - self.Q[s,a])
 
@@ -85,7 +93,7 @@ class QLearning(Agent):
         self.update([s0, s], [a], [r], alpha=alpha, gamma=gamma)
         return s, a, r, done
 
-    def train(self, iterations=1000, epsilon=0, online_update=True, alpha=.05, gamma=1, replays=1):
+    def train(self, iterations=1000, epsilon=0, online_update=True, alpha=.05, gamma=1, replays=1, update_order='forward'):
         '''
         train agent
         '''
@@ -96,7 +104,7 @@ class QLearning(Agent):
                 r = self.rollout(epsilon=epsilon, online_update=True, alpha=alpha, gamma=gamma)[2]
             else:
                 s, a, r = self.rollout(epsilon=epsilon, online_update=False)
-                self.update(s, a, r, replays=replays)
+                self.update(s, a, r, replays=replays, update_order=update_order)
             steps.append(len(r))
             reward.append(sum(r))
         return steps, reward
@@ -153,8 +161,8 @@ class DP_exact(Agent):
 
     def __init__(self, env):
         super().__init__(env)
-        self.V = np.zeros((self.env.observation_space.n, self.env.max_steps + 1))         # (state X time) max value of each state at each time
-        self.A = np.zeros((self.env.observation_space.n, self.env.max_steps), dtype=int)  # best actions to take in each state at each time
+        self.V = np.zeros((self.env.observation_space.n, self.env.max_steps + 1))         # (state X time) optimal value of each state at each time
+        self.A = np.zeros((self.env.observation_space.n, self.env.max_steps), dtype=int)  # (state X time) best actions to take in each state at each time
 
     def select_action(self, s, t):
         return self.A[s,t]
