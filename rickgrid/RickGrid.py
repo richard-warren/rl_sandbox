@@ -135,8 +135,8 @@ class RickGrid(gym.Env):
                         symbol = '  '
                     else:
                         s = self.coords_to_state((r-1,c-1))
-                        symbol = [' ◃', ' ▹', '▵ ', '▿ '][policy[s]]
-                        # symbol = [' <', ' >', '^ ', 'v '][policy[s]]
+                        # symbol = [' ◃', ' ▹', '▵ ', '▿ '][policy[s]]
+                        symbol = [' L', ' R', 'U ', 'D '][policy[s]]
                 maze_str[r] += (symbol)
         print(''.join(maze_str))
 
