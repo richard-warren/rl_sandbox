@@ -1,5 +1,4 @@
 import gym
-import rickgrid
 import numpy as np
 
 

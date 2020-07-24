@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="BranchesTreeState">
+    <expand>
+      <path>
+        <item name="ROOT" type="e8cecc67:BranchNodeDescriptor" />
+        <item name="LOCAL_ROOT" type="e8cecc67:BranchNodeDescriptor" />
+      </path>
+      <path>
+        <item name="ROOT" type="e8cecc67:BranchNodeDescriptor" />
+        <item name="REMOTE_ROOT" type="e8cecc67:BranchNodeDescriptor" />
+      </path>
+      <path>
+        <item name="ROOT" type="e8cecc67:BranchNodeDescriptor" />
+        <item name="REMOTE_ROOT" type="e8cecc67:BranchNodeDescriptor" />
+        <item name="GROUP_NODE:origin" type="e8cecc67:BranchNodeDescriptor" />
+      </path>
+    </expand>
+    <select />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="07e610b8-7349-4c5d-987f-46e52c353767" name="Default Changelist" comment="">
+      <change afterPath="$PROJECT_DIR$/dm_tests/Agents.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/dm_tests/tests.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/gridworld/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/gridworld/.gitignore" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/demo.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/gridworld/demo.ipynb" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rickgrid/Agents.py" beforeDir="false" afterPath="$PROJECT_DIR$/gridworld/rickgrid/Agents.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rickgrid/RickGrid.py" beforeDir="false" afterPath="$PROJECT_DIR$/gridworld/rickgrid/RickGrid.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rickgrid/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/gridworld/rickgrid/__init__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rickgrid/mazes.py" beforeDir="false" afterPath="$PROJECT_DIR$/gridworld/rickgrid/mazes.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/test.py" beforeDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Python Script" />
+      </list>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="ProjectId" id="1caix6XW4cAOTTQyKJdx6gTzbMS" />
+  <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">
+    <property name="RunOnceActivity.OpenProjectViewOnStart" value="true" />
+    <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
+    <property name="TERMINAL_CUSTOM_COMMANDS_GOT_IT" value="true" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$" />
+    <property name="settings.editor.selected.configurable" value="preferences.keymap" />
+  </component>
+  <component name="RecentsManager">
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/gridworld" />
+      <recent name="$PROJECT_DIR$" />
+      <recent name="$PROJECT_DIR$/envs" />
+    </key>
+  </component>
+  <component name="SvnConfiguration">
+    <configuration />
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="07e610b8-7349-4c5d-987f-46e52c353767" name="Default Changelist" comment="" />
+      <created>1590773348532</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1590773348532</updated>
+    </task>
+    <servers />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+    <option name="oldMeFiltersMigrated" value="true" />
+  </component>
+  <component name="WindowStateProjectService">
+    <state x="1616" y="512" width="598" height="423" key="#com.intellij.fileTypes.FileTypeChooser" timestamp="1595297141531">
+      <screen x="0" y="0" width="2560" height="1440" />
+    </state>
+    <state x="1616" y="512" width="598" height="423" key="#com.intellij.fileTypes.FileTypeChooser/0.0.2560.1440@0.0.2560.1440" timestamp="1595297141531" />
+    <state x="376" y="605" width="508" height="264" key="#com.intellij.ide.actions.ChooseComponentsToExportDialog" timestamp="1590779727883">
+      <screen x="0" y="27" width="2560" height="1413" />
+    </state>
+    <state x="376" y="605" width="508" height="264" key="#com.intellij.ide.actions.ChooseComponentsToExportDialog/0.27.2560.1413@0.27.2560.1413" timestamp="1590779727883" />
+    <state x="379" y="477" width="501" height="520" key="FileChooserDialogImpl" timestamp="1590779725741">
+      <screen x="0" y="27" width="2560" height="1413" />
+    </state>
+    <state x="379" y="477" width="501" height="520" key="FileChooserDialogImpl/0.27.2560.1413@0.27.2560.1413" timestamp="1590779725741" />
+    <state x="1117" y="284" width="1022" height="737" key="SettingsEditor" timestamp="1595300002975">
+      <screen x="0" y="0" width="2560" height="1440" />
+    </state>
+    <state x="1117" y="284" width="1022" height="737" key="SettingsEditor/0.0.2560.1440@0.0.2560.1440" timestamp="1595300002975" />
+    <state x="124" y="368" width="1022" height="737" key="SettingsEditor/0.27.2560.1413@0.27.2560.1413" timestamp="1591981655948" />
+    <state x="1563" y="351" width="683" height="772" key="com.intellij.openapi.editor.actions.MultiplePasteAction$ClipboardContentChooser" timestamp="1591843816875">
+      <screen x="0" y="27" width="2560" height="1413" />
+    </state>
+    <state x="1563" y="351" width="683" height="772" key="com.intellij.openapi.editor.actions.MultiplePasteAction$ClipboardContentChooser/0.27.2560.1413@0.27.2560.1413" timestamp="1591843816875" />
+    <state x="1689" y="646" width="451" height="181" key="com.intellij.openapi.vcs.update.UpdateOrStatusOptionsDialogupdate-v2" timestamp="1591580792201">
+      <screen x="0" y="27" width="2560" height="1413" />
+    </state>
+    <state x="1689" y="646" width="451" height="181" key="com.intellij.openapi.vcs.update.UpdateOrStatusOptionsDialogupdate-v2/0.27.2560.1413@0.27.2560.1413" timestamp="1591580792201" />
+    <state x="0" y="27" width="1280" height="706" key="dock-window-1" timestamp="1591909294280">
+      <screen x="0" y="27" width="2560" height="1413" />
+    </state>
+    <state x="0" y="27" width="1280" height="706" key="dock-window-1/0.27.2560.1413@0.27.2560.1413" timestamp="1591909294280" />
+    <state x="1607" y="274" width="616" height="918" key="find.popup" timestamp="1591657303259">
+      <screen x="0" y="27" width="2560" height="1413" />
+    </state>
+    <state x="1607" y="274" width="616" height="918" key="find.popup/0.27.2560.1413@0.27.2560.1413" timestamp="1591657303259" />
+    <state x="1573" y="328" width="672" height="691" key="search.everywhere.popup" timestamp="1595296955982">
+      <screen x="0" y="0" width="2560" height="1440" />
+    </state>
+    <state x="1573" y="328" width="672" height="691" key="search.everywhere.popup/0.0.2560.1440@0.0.2560.1440" timestamp="1595296955982" />
+    <state x="1573" y="349" width="672" height="678" key="search.everywhere.popup/0.27.2560.1413@0.27.2560.1413" timestamp="1592016022002" />
+  </component>
+</project>
