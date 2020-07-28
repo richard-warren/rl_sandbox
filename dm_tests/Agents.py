@@ -4,12 +4,16 @@ import numpy as np
 from collections import deque
 import ipdb
 
-# todo: should be doing several batches with each update?
-
+"""
+todo:
+speed things up
+optimistic initialization (see if this process messes up subsequent rmsprop...)
+target across adjacent actions
+"""
 
 class Agent:
 
-    def __init__(self, observation_spec, action_spec, action_dim=2, q_update_interval=1000, buffer_length=100000):
+    def __init__(self, observation_spec, action_spec, action_dim=2, q_update_interval=1000, buffer_length=10000):
         # todo: observation_dim may fail for higher dimensional spaces
         # todo: is deepcopy necessary for q_frozen?
 
@@ -18,13 +22,14 @@ class Agent:
         self.action_dim = action_dim
         self.actions = np.linspace(action_spec.minimum, action_spec.maximum, action_dim)
         self.q_update_interval = q_update_interval
+        self.buffer_length = buffer_length
         self.replay_buffer = deque([], buffer_length)
 
         self.observation_dim = sum([i.shape[0] for i in observation_spec.values()])  # number of values in the oberservation space
         self.q = self.make_model()
         self.q_target = self.make_model()
         self.q_target.set_weights(self.q.get_weights())
-        self.update_counter = 0  # number of q updates since last q_frozen update (expressed in experiences, not batches)
+        self.update_counter = 0  # number of q updates since last q_frozen update (expressed batches)
 
     def select_action(self, time_step, epsilon=.1):
         """ Epsilon greedy action selection """
@@ -64,15 +69,21 @@ class Agent:
             observations = np.array([i[0] for i in batch])
             actions = np.array([i[1] for i in batch])
             a_idx = self.index_from_action(actions)  # indices for actions
-            rewards = np.array([i[2] for i in batch])
+            rewards = np.array([i[2] for i in batch], dtype='float')
             observations_next = np.array([i[3] for i in batch])
 
-            targets = self.q_target.predict(observations)
-            targets_next = self.q_target.predict(observations_next)
-            targets[np.arange(batch_size), a_idx] = rewards + gamma * np.max(targets_next, axis=1)
+            # stack and predict observations and observations_next at once to increase speed
+            stacked = np.vstack((observations, observations_next))
+            temp = self.q_target.predict(stacked)
+            targets = temp[:batch_size]
+            targets_next = temp[batch_size:]
+            try:
+                targets[np.arange(batch_size), a_idx] = rewards + gamma * np.max(targets_next, axis=1)
+            except:
+                ipdb.set_trace()
 
             # update q
-            self.q.fit(observations, targets)
+            self.q.fit(observations, targets, verbose=False)
 
             # update q_target if enough updates
             self.update_counter += batch_size
@@ -114,4 +125,6 @@ class Agent:
     def action_from_index(self, action_idx):
         """ Converts integer index(es) in [0,action_dim] to action in [action_spec.minimum, action_spec.maximum] """
         return self.actions[np.array(action_idx)]
+
+
 
