@@ -2,20 +2,31 @@ import random
 import tensorflow as tf
 import numpy as np
 from collections import deque
+import time
 import ipdb
 
 """
 todo:
 speed things up
 optimistic initialization (see if this process messes up subsequent rmsprop...)
+fine tune optimizer and learning rate (should these be adjusted with optimistic inits?)
 target across adjacent actions
+make work on higher dimensional observation and action spaces
+
+timing:
+- select action:        .017
+- select action (np):   .001
+- fit:                  .019
+- predict batch:        .016
+- prepare minibatch:    .0005
+- step:                 .0002
 """
+
 
 class Agent:
 
-    def __init__(self, observation_spec, action_spec, action_dim=2, q_update_interval=1000, buffer_length=10000):
-        # todo: observation_dim may fail for higher dimensional spaces
-        # todo: is deepcopy necessary for q_frozen?
+    def __init__(self, observation_spec, action_spec, action_dim=2, learning_rate=.001,
+                 q_update_interval=100, buffer_length=10000):
 
         self.observation_spec = observation_spec
         self.action_spec = action_spec
@@ -31,20 +42,20 @@ class Agent:
         self.q_target.set_weights(self.q.get_weights())
         self.update_counter = 0  # number of q updates since last q_frozen update (expressed batches)
 
+        optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
+        self.q.compile(loss='mse', optimizer=optimizer)
+
     def select_action(self, time_step, epsilon=.1):
         """ Epsilon greedy action selection """
-        # todo: continuous output by taking expectation over predictions, and taking continuous random number
 
         if np.random.uniform() < epsilon:
             action_idx = np.random.randint(0, self.action_dim)
         else:
             observation = self.get_observation_vector(time_step)  # concat all observations
-            prediction = self.q_target.predict(np.array([observation]))[0]
+            prediction = self.predict(observation[np.newaxis,:])[0]
             action_idx = np.argmax(prediction)
 
-        action = self.action_from_index(action_idx)
-
-        return action
+        return self.action_from_index(action_idx)
 
     def add_experience(self, time_step, action, time_step_next):
         """ add to replay buffer an experience of form: (observation, action, reward, observation_next, done) """
@@ -58,10 +69,8 @@ class Agent:
                 self.get_observation_vector(time_step_next)
             ])
 
-    def update(self, batch_size=32, gamma=.99):
+    def update(self, batch_size=32, gamma=1):
         """ Update Q function(s) """
-
-        # collect data
         if len(self.replay_buffer) >= batch_size:
 
             # get batch
@@ -69,39 +78,32 @@ class Agent:
             observations = np.array([i[0] for i in batch])
             actions = np.array([i[1] for i in batch])
             a_idx = self.index_from_action(actions)  # indices for actions
-            rewards = np.array([i[2] for i in batch], dtype='float')
+            rewards = np.array([i[2] for i in batch])
             observations_next = np.array([i[3] for i in batch])
 
             # stack and predict observations and observations_next at once to increase speed
             stacked = np.vstack((observations, observations_next))
-            temp = self.q_target.predict(stacked)
+            temp = self.predict(stacked)
             targets = temp[:batch_size]
             targets_next = temp[batch_size:]
-            try:
-                targets[np.arange(batch_size), a_idx] = rewards + gamma * np.max(targets_next, axis=1)
-            except:
-                ipdb.set_trace()
+            targets[np.arange(batch_size), a_idx] = rewards + gamma * np.max(targets_next, axis=1)
 
             # update q
             self.q.fit(observations, targets, verbose=False)
 
             # update q_target if enough updates
-            self.update_counter += batch_size
+            self.update_counter += 1
             if self.update_counter > self.q_update_interval:
                 self.q_target.set_weights(self.q.get_weights())
                 self.update_counter = 0
 
-    def make_model(self, units_per_layer=(32,64), activation='tanh'):
+    def make_model(self, units_per_layer=(32,64)):
         """ Make Q function MLP with softmax output over discrete actions """
-        # todo: optimizer and learning rate...
-
         model = tf.keras.Sequential()
-        model.add(tf.keras.layers.Dense(units_per_layer[0], activation=activation, input_dim=self.observation_dim))
+        model.add(tf.keras.layers.Dense(units_per_layer[0], activation='tanh', input_dim=self.observation_dim))
         for i in units_per_layer[1:]:
-            model.add(tf.keras.layers.Dense(i, activation=activation))
+            model.add(tf.keras.layers.Dense(i, activation='tanh'))
         model.add(tf.keras.layers.Dense(self.action_dim, activation='linear'))
-        model.compile(loss='mse', optimizer='adam')
-
         return model
 
     @staticmethod
@@ -109,15 +111,9 @@ class Agent:
         """ converts 'dm_env._environment.TimeStep' to observation vector """
         return np.hstack([v for v in time_step.observation.values()])
 
-    def action_discrete_to_continuous(self, action):
-        """ Converts integer action in [0,action_dim] to action in [action_spec.minimum, action_spec.maximum] """
-        action = (action / self.action_dim) * \
-                 (self.action_spec.maximum - self.action_spec.minimum) + self.action_spec.minimum
-        return action
-
     def index_from_action(self, action):
         """ Converts action(s) in [action_spec.minimum, action_spec.maximum] to integer index in [0,action_dim] """
-        # todo: there should be a fast one-liner for the following // rounding errors may affect us here too...
+        # todo: there should be a fast one-liner for the following // rounding errors may affect us here too... // enum?
         if type(action) is float:
             action = [action]
         return [int(np.where(self.actions==a)[0]) for a in action]
@@ -125,6 +121,19 @@ class Agent:
     def action_from_index(self, action_idx):
         """ Converts integer index(es) in [0,action_dim] to action in [action_spec.minimum, action_spec.maximum] """
         return self.actions[np.array(action_idx)]
+
+    def predict(self, x, fast_predict=True):
+        """ q_target prediction. fast_predict uses numpy for prediction, which is faster for small networks """\
+        if fast_predict:
+            weights = [layer.get_weights()[0] for layer in self.q_target.layers]
+            biases = [layer.get_weights()[1] for layer in self.q_target.layers]
+            y = x.copy()
+            for w, b in zip(weights[:-1], biases[:-1]):
+                y = np.tanh(np.matmul(y, w) + b)
+            y = np.matmul(y, weights[-1]) + biases[-1]
+        else:
+            y = self.q.predict(x)
+        return y
 
 
 
