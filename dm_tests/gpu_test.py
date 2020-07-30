@@ -3,11 +3,17 @@ test forward pass prediction speed in tensorflow
 compare to manual compuation in numpy
 """
 
+"""
+speed (ms):
+.predict:    40
+.fit:        100-200 
+"""
+
 import time
 import tensorflow as tf
 import numpy as np
 
-def make_model(units_per_layer=(32, 64, 128, 10000, 10000, 10000), activation='tanh', input_dim=5, action_dim=3):
+def make_model(units_per_layer=(32, 64), activation='tanh', input_dim=5, action_dim=3):
     """ Make Q function MLP with softmax output over discrete actions """
 
     model = tf.keras.Sequential()

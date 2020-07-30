@@ -41,6 +41,7 @@ class Agent:
         self.q_target = self.make_model()
         self.q_target.set_weights(self.q.get_weights())
         self.update_counter = 0  # number of q updates since last q_frozen update (expressed batches)
+        self.total_updates = 0
 
         optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
         self.q.compile(loss='mse', optimizer=optimizer)
@@ -60,14 +61,13 @@ class Agent:
     def add_experience(self, time_step, action, time_step_next):
         """ add to replay buffer an experience of form: (observation, action, reward, observation_next, done) """
 
-        # only append if time_step is not last, because time_step_next will be post-reset otherwise
-        if not time_step.last():
-            self.replay_buffer.append([
-                self.get_observation_vector(time_step),
-                action,
-                time_step_next.reward,
-                self.get_observation_vector(time_step_next)
-            ])
+        self.replay_buffer.append([
+            self.get_observation_vector(time_step),
+            action,
+            time_step_next.reward,
+            self.get_observation_vector(time_step_next),
+            time_step_next.last()
+        ])
 
     def update(self, batch_size=32, gamma=1):
         """ Update Q function(s) """
@@ -77,27 +77,32 @@ class Agent:
             batch = random.sample(self.replay_buffer, batch_size)
             observations = np.array([i[0] for i in batch])
             actions = np.array([i[1] for i in batch])
-            a_idx = self.index_from_action(actions)  # indices for actions
+            a_idx = np.array(self.index_from_action(actions))  # indices for actions
             rewards = np.array([i[2] for i in batch])
             observations_next = np.array([i[3] for i in batch])
+            done = np.array([i[4] for i in batch], dtype='bool')
 
             # stack and predict observations and observations_next at once to increase speed
             stacked = np.vstack((observations, observations_next))
             temp = self.predict(stacked, self.q_target)
             targets = temp[:batch_size]
             targets_next = temp[batch_size:]
-            targets[np.arange(batch_size), a_idx] = rewards + gamma * np.max(targets_next, axis=1)
+
+            # update targets for selected actions
+            targets[np.arange(batch_size), a_idx] = rewards
+            targets[np.arange(batch_size)[~done], a_idx[~done]] += gamma * np.max(targets_next[~done], axis=1)
 
             # update q
             self.q.fit(observations, targets, verbose=False)
 
             # update q_target if enough updates
+            self.total_updates += 1
             self.update_counter += 1
             if self.update_counter > self.q_update_interval:
                 self.q_target.set_weights(self.q.get_weights())
                 self.update_counter = 0
 
-    def make_model(self, units_per_layer=(32,32)):
+    def make_model(self, units_per_layer=(24,48)):
         """ Make Q function MLP with softmax output over discrete actions """
         model = tf.keras.Sequential()
         model.add(tf.keras.layers.Dense(units_per_layer[0], activation='tanh', input_dim=self.observation_dim))
@@ -105,11 +110,6 @@ class Agent:
             model.add(tf.keras.layers.Dense(i, activation='tanh'))
         model.add(tf.keras.layers.Dense(self.action_dim, activation='linear'))
         return model
-
-    @staticmethod
-    def get_observation_vector(time_step):
-        """ converts 'dm_env._environment.TimeStep' to observation vector """
-        return np.hstack([v for v in time_step.observation.values()])
 
     def index_from_action(self, action):
         """ Converts action(s) in [action_spec.minimum, action_spec.maximum] to integer index in [0,action_dim] """
@@ -122,7 +122,13 @@ class Agent:
         """ Converts integer index(es) in [0,action_dim] to action in [action_spec.minimum, action_spec.maximum] """
         return self.actions[np.array(action_idx)]
 
-    def predict(self, x, model, fast_predict=True):
+    @staticmethod
+    def get_observation_vector(time_step):
+        """ converts 'dm_env._environment.TimeStep' to observation vector """
+        return np.hstack([v for v in time_step.observation.values()])
+
+    @staticmethod
+    def predict(x, model, fast_predict=True):
         """ q_target prediction. fast_predict uses numpy for prediction, which is faster for small networks """
         if fast_predict:
             weights = [layer.get_weights()[0] for layer in model.layers]

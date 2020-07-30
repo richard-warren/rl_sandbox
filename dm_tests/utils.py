@@ -1,10 +1,13 @@
 from tqdm import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
+import copy
+import ipdb
 
 
 # get average episode return by sampling `iterations` episodes
-def get_avg_return(agent, env, iterations=1, max_time=10, epsilon=.0):
+def get_avg_return(agent, env, iterations=1, max_time=10, epsilon=0):
+    env = copy.deepcopy(env)  # avoid modifying original object
     returns = []
     for i in range(iterations):
         time_step = env.reset()
@@ -19,6 +22,7 @@ def get_avg_return(agent, env, iterations=1, max_time=10, epsilon=.0):
 
 # fill buffer with random actions
 def initialize_buffer(agent, env):
+    env = copy.deepcopy(env)  # avoid modifying original object
     print('initializing replay buffer...')
     time_step = env.reset()
     for i in tqdm(range(agent.buffer_length)):
@@ -26,6 +30,10 @@ def initialize_buffer(agent, env):
         time_step_next = env.step(action)
         agent.add_experience(time_step, action, time_step_next)
         time_step = time_step_next
+        if time_step_next.last():
+            env.reset()
+        if time_step.reward is None:
+            ipdb.set_trace()
 
 
 # initialize q to output optimistic values
