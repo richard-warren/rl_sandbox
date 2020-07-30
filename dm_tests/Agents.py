@@ -13,7 +13,7 @@ fine tune optimizer and learning rate (should these be adjusted with optimistic 
 target across adjacent actions
 make work on higher dimensional observation and action spaces
 
-timing:
+time (s):
 - select action:        .017
 - select action (np):   .001
 - fit:                  .019
@@ -52,7 +52,7 @@ class Agent:
             action_idx = np.random.randint(0, self.action_dim)
         else:
             observation = self.get_observation_vector(time_step)  # concat all observations
-            prediction = self.predict(observation[np.newaxis,:])[0]
+            prediction = self.predict(observation[np.newaxis,:], self.q)[0]
             action_idx = np.argmax(prediction)
 
         return self.action_from_index(action_idx)
@@ -83,7 +83,7 @@ class Agent:
 
             # stack and predict observations and observations_next at once to increase speed
             stacked = np.vstack((observations, observations_next))
-            temp = self.predict(stacked)
+            temp = self.predict(stacked, self.q_target)
             targets = temp[:batch_size]
             targets_next = temp[batch_size:]
             targets[np.arange(batch_size), a_idx] = rewards + gamma * np.max(targets_next, axis=1)
@@ -97,7 +97,7 @@ class Agent:
                 self.q_target.set_weights(self.q.get_weights())
                 self.update_counter = 0
 
-    def make_model(self, units_per_layer=(32,64)):
+    def make_model(self, units_per_layer=(32,32)):
         """ Make Q function MLP with softmax output over discrete actions """
         model = tf.keras.Sequential()
         model.add(tf.keras.layers.Dense(units_per_layer[0], activation='tanh', input_dim=self.observation_dim))
@@ -122,17 +122,17 @@ class Agent:
         """ Converts integer index(es) in [0,action_dim] to action in [action_spec.minimum, action_spec.maximum] """
         return self.actions[np.array(action_idx)]
 
-    def predict(self, x, fast_predict=True):
-        """ q_target prediction. fast_predict uses numpy for prediction, which is faster for small networks """\
+    def predict(self, x, model, fast_predict=True):
+        """ q_target prediction. fast_predict uses numpy for prediction, which is faster for small networks """
         if fast_predict:
-            weights = [layer.get_weights()[0] for layer in self.q_target.layers]
-            biases = [layer.get_weights()[1] for layer in self.q_target.layers]
+            weights = [layer.get_weights()[0] for layer in model.layers]
+            biases = [layer.get_weights()[1] for layer in model.layers]
             y = x.copy()
             for w, b in zip(weights[:-1], biases[:-1]):
                 y = np.tanh(np.matmul(y, w) + b)
             y = np.matmul(y, weights[-1]) + biases[-1]
         else:
-            y = self.q.predict(x)
+            y = model.predict(x)
         return y
 
 

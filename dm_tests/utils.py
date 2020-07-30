@@ -1,9 +1,10 @@
 from tqdm import tqdm
 import numpy as np
-import ipdb
+import matplotlib.pyplot as plt
+
 
 # get average episode return by sampling `iterations` episodes
-def get_avg_return(agent, env, iterations=5, max_time=10, epsilon=.1):
+def get_avg_return(agent, env, iterations=1, max_time=10, epsilon=.0):
     returns = []
     for i in range(iterations):
         time_step = env.reset()
@@ -50,3 +51,17 @@ def train_optimistic_q(agent, target_q=100, iterations=1000, batch_size=128):
     for i in tqdm(range(iterations)):
         agent.q.fit(get_random_samples(batch_size), np.ones(batch_size)*target_q, verbose=False)
     print('post training avg value: {:.2f}'.format(get_avg_value()))
+
+
+# show rollout
+def show_rollout(agent, env):
+    time_step = env.reset()
+    imshow = plt.imshow(env.physics.render(camera_id=0))
+    episode_return = 0
+    while not time_step.last():
+        action = agent.select_action(time_step, epsilon=0)
+        time_step = env.step(action)
+        episode_return += time_step.reward
+        imshow.set_data(env.physics.render(camera_id=0))
+        plt.pause(.001)
+    print('episode return: {:.2f}'.format(episode_return))
