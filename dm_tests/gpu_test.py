@@ -1,6 +1,8 @@
 """
-test forward pass prediction speed in tensorflow
-compare to manual compuation in numpy
+compare fit and evaluation speeds for:
+- tensorflow (gpu)
+- tensorflow (cpu)
+- numpy (forward pass only)
 """
 
 """
@@ -10,10 +12,28 @@ speed (ms):
 """
 
 import time
-import tensorflow as tf
 import numpy as np
 
-def make_model(units_per_layer=(32, 64), activation='tanh', input_dim=5, action_dim=3):
+
+
+# settings
+disable_gpu = True
+units_per_layer = (24,48)
+batch_size = 1024
+
+
+# disable gpus
+import tensorflow as tf
+
+if disable_gpu:
+    print('DISABLING GPUs')
+    tf.config.set_visible_devices([], 'GPU')
+    visible_devices = tf.config.get_visible_devices()
+    for device in visible_devices:
+        assert device.device_type != 'GPU'
+
+
+def make_model(units_per_layer=(32,64,128), activation='tanh', input_dim=5, action_dim=3):
     """ Make Q function MLP with softmax output over discrete actions """
 
     model = tf.keras.Sequential()
@@ -25,18 +45,8 @@ def make_model(units_per_layer=(32, 64), activation='tanh', input_dim=5, action_
 
     return model
 
-model = make_model()
-def rand_smp():
-    s = np.random.rand()*100
-    return np.array([[s,s,s,s,s]], dtype='float32')
 
-# t0=time.time(); model.predict(smp); print(time.time()-t0)
-
-##
-smp = rand_smp()
-
-
-def predict_manual(smp):
+def predict_numpy(smp, model):
     weights = [layer.get_weights()[0] for layer in model.layers]
     biases = [layer.get_weights()[1] for layer in model.layers]
 
@@ -46,7 +56,27 @@ def predict_manual(smp):
     return np.matmul(activation, weights[-1]) + biases[-1]
 
 
+# time operations
+model = make_model(units_per_layer=units_per_layer)
+# model.summary()
 
 
-print('manual:    {}'.format(predict_manual(smp)))
-print('.predict:  {}'.format(model.predict(smp)))
+t0 = time.time()
+model.predict(np.zeros((1,5)))
+print('single evaluation: {:.2f}'.format(time.time() - t0))
+
+t0 = time.time()
+model.predict(np.zeros((batch_size,5)))
+print('batch evaluation: {:.2f}'.format(time.time() - t0))
+
+t0 = time.time()
+model.fit(np.zeros((batch_size,5)), np.zeros((batch_size,1)), verbose=False)
+print('fit time: {:.2f}'.format(time.time() - t0))
+
+t0 = time.time()
+predict_numpy(np.zeros((1,5)), model)
+print('single evaluation (numpy): {:.2f}'.format(time.time() - t0))
+
+t0 = time.time()
+predict_numpy(np.zeros((batch_size,5)), model)
+print('batch evaluation  (numpy): {:.2f}'.format(time.time() - t0))

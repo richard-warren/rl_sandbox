@@ -5,8 +5,9 @@ import copy
 import ipdb
 
 
+
 # get average episode return by sampling `iterations` episodes
-def get_avg_return(agent, env, iterations=1, max_time=10, epsilon=0):
+def get_avg_return(agent, env, iterations=5, max_time=10, epsilon=.05):
     env = copy.deepcopy(env)  # avoid modifying original object
     returns = []
     for i in range(iterations):
@@ -48,7 +49,7 @@ def train_optimistic_q(agent, target_q=100, iterations=1000, batch_size=128):
     # sample from hyper-rectangle spanning buffer data
     def get_random_samples(num_samples=32):
         smp = np.random.uniform(size=(num_samples,agent.observation_dim))
-        return np.multiply(smp, obs_ptp) - obs_min
+        return np.multiply(smp, obs_ptp) + obs_min
 
     def get_avg_value(num_samples=100):
         smp = get_random_samples(num_samples)
@@ -62,14 +63,16 @@ def train_optimistic_q(agent, target_q=100, iterations=1000, batch_size=128):
 
 
 # show rollout
-def show_rollout(agent, env):
+def show_rollout(agent, env, epsilon=0):
     time_step = env.reset()
     imshow = plt.imshow(env.physics.render(camera_id=0))
     episode_return = 0
     while not time_step.last():
-        action = agent.select_action(time_step, epsilon=0)
+        action = agent.select_action(time_step, epsilon=epsilon)
         time_step = env.step(action)
         episode_return += time_step.reward
         imshow.set_data(env.physics.render(camera_id=0))
         plt.pause(.001)
     print('episode return: {:.2f}'.format(episode_return))
+
+

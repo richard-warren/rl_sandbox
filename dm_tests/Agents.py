@@ -98,12 +98,13 @@ class Agent:
             # update q_target if enough updates
             self.total_updates += 1
             self.update_counter += 1
-            if self.update_counter > self.q_update_interval:
+            if self.update_counter == self.q_update_interval:
                 self.q_target.set_weights(self.q.get_weights())
                 self.update_counter = 0
 
     def make_model(self, units_per_layer=(24,48)):
         """ Make Q function MLP with softmax output over discrete actions """
+        # todo: make work when only a single hidden layer is requested
         model = tf.keras.Sequential()
         model.add(tf.keras.layers.Dense(units_per_layer[0], activation='tanh', input_dim=self.observation_dim))
         for i in units_per_layer[1:]:
@@ -140,6 +141,16 @@ class Agent:
         else:
             y = model.predict(x)
         return y
+
+    def get_prediction_grid(self, bins=10, percentile_lims=(1,99)):
+        """ Get hyperrectangle of predictions spanning observation space """
+        observations = np.array([i[0] for i in self.replay_buffer])
+        axis_limits = np.percentile(observations, percentile_lims, axis=0)
+        axis_grids = [np.linspace(dmin, dmax, num=bins) for dmin, dmax in zip(axis_limits[0], axis_limits[1])]
+        grid = np.array(np.meshgrid(*axis_grids)).reshape(5, -1).transpose()
+        predictions = self.q.predict(grid).reshape([bins] * self.observation_dim + [2])
+        return predictions, axis_limits
+
 
 
 
