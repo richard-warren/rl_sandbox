@@ -59,11 +59,13 @@ def train_optimistic_q(agent, target_q=100, iterations=1000, batch_size=128):
     print('pre training avg value: {:.2f}'.format(get_avg_value()))
     for i in tqdm(range(iterations)):
         agent.q.fit(get_random_samples(batch_size), np.ones(batch_size)*target_q, verbose=False)
+    agent.q_target.set_weights(agent.q.get_weights())
     print('post training avg value: {:.2f}'.format(get_avg_value()))
 
 
 # show rollout
 def show_rollout(agent, env, epsilon=0):
+    plt.figure()
     time_step = env.reset()
     imshow = plt.imshow(env.physics.render(camera_id=0))
     episode_return = 0

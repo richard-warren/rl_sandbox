@@ -7,8 +7,6 @@ import ipdb
 
 """
 todo:
-speed things up
-optimistic initialization (see if this process messes up subsequent rmsprop...)
 fine tune optimizer and learning rate (should these be adjusted with optimistic inits?)
 target across adjacent actions
 make work on higher dimensional observation and action spaces
@@ -61,13 +59,13 @@ class Agent:
     def add_experience(self, time_step, action, time_step_next):
         """ add to replay buffer an experience of form: (observation, action, reward, observation_next, done) """
 
-        self.replay_buffer.append([
+        self.replay_buffer.append((
             self.get_observation_vector(time_step),
             action,
             time_step_next.reward,
             self.get_observation_vector(time_step_next),
             time_step_next.last()
-        ])
+        ))
 
     def update(self, batch_size=32, gamma=1):
         """ Update Q function(s) """
@@ -98,7 +96,7 @@ class Agent:
             # update q_target if enough updates
             self.total_updates += 1
             self.update_counter += 1
-            if self.update_counter == self.q_update_interval:
+            if self.update_counter >= self.q_update_interval:
                 self.q_target.set_weights(self.q.get_weights())
                 self.update_counter = 0
 
@@ -147,8 +145,8 @@ class Agent:
         observations = np.array([i[0] for i in self.replay_buffer])
         axis_limits = np.percentile(observations, percentile_lims, axis=0)
         axis_grids = [np.linspace(dmin, dmax, num=bins) for dmin, dmax in zip(axis_limits[0], axis_limits[1])]
-        grid = np.array(np.meshgrid(*axis_grids)).reshape(5, -1).transpose()
-        predictions = self.q.predict(grid).reshape([bins] * self.observation_dim + [2])
+        grid = np.array(np.meshgrid(*axis_grids)).reshape(self.observation_dim, -1).transpose()
+        predictions = self.q.predict(grid).reshape([bins] * self.observation_dim + [self.action_dim])
         return predictions, axis_limits
 
 
