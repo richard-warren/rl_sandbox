@@ -7,18 +7,18 @@ import ipdb
 
 
 # get average episode return by sampling `iterations` episodes
-def get_avg_return(agent, env, iterations=5, max_time=10, epsilon=.05):
+def get_avg_return(agent, env, iterations=5, epsilon=.05):
     env = copy.deepcopy(env)  # avoid modifying original object
     returns = []
     for i in range(iterations):
         time_step = env.reset()
         episode_return = 0
-        while not time_step.last() and env.physics.time()<max_time:
+        while not time_step.last():
             action = agent.select_action(time_step, epsilon=epsilon)
             time_step = env.step(action)
             episode_return += time_step.reward
         returns.append(episode_return)
-    return sum(returns) / len(returns)
+    return sum(returns) / len(returns), returns
 
 
 # fill buffer with random actions

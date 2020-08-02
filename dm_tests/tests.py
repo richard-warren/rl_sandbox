@@ -40,25 +40,26 @@ epsilon_start = 1
 epsilon_final = .1
 epsilon_final_update = (steps_per_episode / steps_per_update * episodes)*.5  # (updates) epsilon_final is reach after this many updates
 buffer_length = 50000
-target_q = None  # use for "optimistic" initialize of q model
+q_pretrain_value = None  # use for "optimistic" initialize of q model
 learning_rate = .001
+units_per_layer = (12,24)
 
 # choose task
 # env = suite.load('cartpole', 'balance')  # success
 # env = suite.load('cartpole', 'balance_sparse')  # success (1000 max)
 # env = suite.load('cartpole', 'swingup')  # success (>500 is good)
-env = suite.load('cartpole', 'swingup_sparse')  # success!
+# env = suite.load('cartpole', 'swingup_sparse')  # success!
 
-# env = suite.load('pendulum', 'swingup')  # success (>500 is good)
+env = suite.load('pendulum', 'swingup')  # success (>500 is good)
 
 
 # make agent
-agent = Agents.Agent(env.observation_spec(), env.action_spec(), action_dim=action_dim,
+agent = Agents.Agent(env.observation_spec(), env.action_spec(), action_dim=action_dim, units_per_layer=units_per_layer,
                      q_update_interval=q_update_interval, buffer_length=buffer_length, learning_rate=learning_rate)
 utils.initialize_buffer(agent, env)
 
-if target_q is not None:
-    utils.train_optimistic_q(agent, target_q=target_q)
+if q_pretrain_value is not None:
+    utils.train_optimistic_q(agent, target_q=q_pretrain_value)
 
 ##
 print('training agent...')
@@ -87,12 +88,13 @@ for i in tqdm(range(episodes)):
             step_counter = 0
 
     if (i+1) % eval_interval == 0:
-        avg_return = utils.get_avg_return(agent, env)
-        print('iteration {}, avg return {:.2f}, epsilon {:.2f}'.format(i+1, avg_return, epsilon_temp))
+        avg_return, returns = utils.get_avg_return(agent, env)
+        print('iteration {}, avg return {:.2f}, epsilon {:.2f}, returns: {}'.format(
+            i+1, avg_return, epsilon_temp, returns))
 
 ##
 
-utils.show_rollout(agent, env, epsilon=.0)
+utils.show_rollout(agent, env, epsilon=.05)
 
 
 

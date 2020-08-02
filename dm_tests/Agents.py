@@ -24,7 +24,7 @@ time (s):
 class Agent:
 
     def __init__(self, observation_spec, action_spec, action_dim=2, learning_rate=.001,
-                 q_update_interval=100, buffer_length=10000):
+                 q_update_interval=100, buffer_length=10000, units_per_layer=(24,48)):
 
         self.observation_spec = observation_spec
         self.action_spec = action_spec
@@ -35,8 +35,8 @@ class Agent:
         self.replay_buffer = deque([], buffer_length)
 
         self.observation_dim = sum([i.shape[0] for i in observation_spec.values()])  # number of values in the oberservation space
-        self.q = self.make_model()
-        self.q_target = self.make_model()
+        self.q = self.make_model(units_per_layer=units_per_layer)
+        self.q_target = self.make_model(units_per_layer=units_per_layer)
         self.q_target.set_weights(self.q.get_weights())
         self.update_counter = 0  # number of q updates since last q_frozen update (expressed batches)
         self.total_updates = 0
