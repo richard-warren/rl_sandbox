@@ -8,7 +8,7 @@ import ipdb
 
 # get average episode return by sampling `iterations` episodes
 def get_avg_return(agent, env, iterations=5, epsilon=.05):
-    env = copy.deepcopy(env)  # avoid modifying original object
+    env = copy.deepcopy(env)  # don't mess with state of the original environment
     returns = []
     for i in range(iterations):
         time_step = env.reset()
@@ -23,7 +23,7 @@ def get_avg_return(agent, env, iterations=5, epsilon=.05):
 
 # fill buffer with random actions
 def initialize_buffer(agent, env):
-    env = copy.deepcopy(env)  # avoid modifying original object
+    env = copy.deepcopy(env)  # don't mess with state of the original environment
     print('initializing replay buffer...')
     time_step = env.reset()
     for i in tqdm(range(agent.buffer_length)):
@@ -33,11 +33,9 @@ def initialize_buffer(agent, env):
         time_step = time_step_next
         if time_step_next.last():
             env.reset()
-        if time_step.reward is None:
-            ipdb.set_trace()
 
 
-# initialize q to output optimistic values
+# initialize q to output optimistic values throughout state space
 def train_optimistic_q(agent, target_q=100, iterations=1000, batch_size=128):
     print('initializing q with optimistic values...')
 
@@ -51,6 +49,7 @@ def train_optimistic_q(agent, target_q=100, iterations=1000, batch_size=128):
         smp = np.random.uniform(size=(num_samples,agent.observation_dim))
         return np.multiply(smp, obs_ptp) + obs_min
 
+    # get average output of network (on uniformly sampled random inputs)
     def get_avg_value(num_samples=100):
         smp = get_random_samples(num_samples)
         values = agent.q.predict(smp)
@@ -62,9 +61,14 @@ def train_optimistic_q(agent, target_q=100, iterations=1000, batch_size=128):
     agent.q_target.set_weights(agent.q.get_weights())
     print('post training avg value: {:.2f}'.format(get_avg_value()))
 
+    # reset optimizer state
+    # todo: should save compile args as agent attribute to make sure none are missing here...
+    agent.q.compile(loss=agent.q.loss, optimizer=agent.q.optimizer)
+
 
 # show rollout
 def show_rollout(agent, env, epsilon=0):
+    env = copy.deepcopy(env)  # don't mess with state of the original environment
     plt.figure()
     time_step = env.reset()
     imshow = plt.imshow(env.physics.render(camera_id=0))
