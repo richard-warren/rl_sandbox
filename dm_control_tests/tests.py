@@ -5,13 +5,9 @@
 
 ## imports
 import numpy as np
-import copy
 from dm_control import suite
-import matplotlib.pyplot as plt
 from tqdm import tqdm
-from dm_tests import Agents, utils
-import ipdb
-import time
+from dm_control_tests import Agents, utils
 import tensorflow as tf
 
 print('disabling GPUs for tensorflow')
@@ -30,7 +26,7 @@ for device in visible_devices:
 # settings
 action_grid = 3
 action_repeats = 4  # repeat every action this number of times
-episodes = 1000
+episodes = 200
 steps_per_update = 4  # steps before updating q (increase this to cycle through episodes more quickly)
 batch_size = 64
 q_update_interval = 100  # (updates) frequency of q_target updates
@@ -43,13 +39,13 @@ buffer_length = 50000
 q_pretrain_value = None  # use for "optimistic" initialize of q model
 learning_rate = .001
 units_per_layer = (12,24)  # number of units per hidden layer (must have len()>1)
-double_dqn = True
+double_dqn = False
 gamma = .99
 
 # choose task
 # env = suite.load('cartpole', 'balance')  # success
 # env = suite.load('cartpole', 'balance_sparse')  # success (1000 max)
-# env = suite.load('cartpole', 'swingup')  # success (>500 is good)
+env = suite.load('cartpole', 'swingup')  # success (>500 is good)
 # env = suite.load('cartpole', 'swingup_sparse')  # success!
 
 # env = suite.load('pendulum', 'swingup')
@@ -58,7 +54,7 @@ gamma = .99
 
 # env = suite.load('point_mass', 'easy')
 
-env = suite.load('reacher', 'easy')
+# env = suite.load('reacher', 'easy')
 
 
 
@@ -74,34 +70,7 @@ if q_pretrain_value is not None:
 
 ##
 print('training agent...')
-
-for i in tqdm(range(episodes)):
-    time_step = env.reset()
-    done = False
-    step_counter = 0
-    action_counter = action_repeats
-
-    while not done:
-        epsilon_temp = epsilon_start - min(agent.total_updates / epsilon_final_update, 1) * (epsilon_start - epsilon_final)
-        if action_counter==action_repeats:
-            action = agent.select_action(time_step, epsilon=epsilon_temp)
-            action_counter = 0
-        action_counter += 1
-
-        time_step_next = env.step(action)
-        done = time_step_next.last()
-        agent.add_experience(time_step, action, time_step_next)
-        time_step = time_step_next
-
-        step_counter += 1
-        if step_counter==steps_per_update:
-            agent.update(batch_size=batch_size, gamma=gamma)
-            step_counter = 0
-
-    if (i+1) % eval_interval == 0:
-        avg_return, returns = utils.get_avg_return(agent, env)
-        print('iteration {}, avg return {:.2f}, epsilon {:.2f}, returns: {}'.format(
-            i+1, avg_return, epsilon_temp, [round(x,1) for x in returns]))
+utils.train(agent, env)
 
 ##
 utils.show_rollout(agent, env, epsilon=.1)

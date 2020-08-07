@@ -18,9 +18,8 @@ speed tests (s):
 
 class Agent:
 
-    def __init__(self, observation_spec, action_spec, action_grid=2, learning_rate=.001,
-                 q_update_interval=100, buffer_length=10000, units_per_layer=(24,48),
-                 double_dqn=False):
+    def __init__(self, observation_spec, action_spec, action_grid=2, learning_rate=.001, q_update_interval=100,
+                 buffer_length=10000, units_per_layer=(24,48), double_dqn=False):
 
         self.observation_spec = observation_spec
         self.action_spec = action_spec
@@ -41,7 +40,6 @@ class Agent:
         self.q = self.make_model(units_per_layer=units_per_layer)
         self.q_target = self.make_model(units_per_layer=units_per_layer)
         self.q_target.set_weights(self.q.get_weights())
-        self.update_counter = 0  # number of q updates since last q_frozen update (expressed batches)
         self.total_updates = 0
         optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
         self.q.compile(loss='mse', optimizer=optimizer)
@@ -100,15 +98,13 @@ class Agent:
 
             # update q_target if enough updates
             self.total_updates += 1
-            self.update_counter += 1
-            if self.update_counter >= self.q_update_interval:
+            if self.total_updates%self.q_update_interval == 0:
                 self.q_target.set_weights(self.q.get_weights())
-                self.update_counter = 0
 
     def make_model(self, units_per_layer=(24,48)):
         """ Make Q function MLP with softmax output over discrete actions """
-        # todo: make work when only a single hidden layer is requested
         model = tf.keras.Sequential()
+        units_per_layer = (units_per_layer,) if isinstance(units_per_layer, int) else units_per_layer  # if only one hidden layer requested
         model.add(tf.keras.layers.Dense(units_per_layer[0], activation='tanh', input_dim=self.observation_dim))
         for i in units_per_layer[1:]:
             model.add(tf.keras.layers.Dense(i, activation='tanh'))
@@ -126,7 +122,7 @@ class Agent:
 
     @staticmethod
     def get_observation_vector(time_step):
-        """ Convertpy 'dm_env._environment.TimeStep' to observation vector """
+        """ Convert 'dm_env._environment.TimeStep' to observation vector """
         return np.hstack([v for v in time_step.observation.values()])
 
     @staticmethod

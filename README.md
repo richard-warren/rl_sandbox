@@ -9,4 +9,12 @@ This repro contains reinforcement learning projects:
 - fraction state space explored (entropy of distribution) over training with and without optimistic q
 
 # dqn todo
+- make sure works on
+  - pendulum
+  - cartpole (balance, balance_sparse, swingup, swingup_sparse)
+  - point mass
+  - ball in cup
+  
+- wall time?
+- exhaustive sweep over tasks?
 - make sure gamma appears in evaluations as well...
