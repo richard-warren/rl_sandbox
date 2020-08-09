@@ -1,11 +1,26 @@
+from dm_control_tests import agents
+from dm_control import suite
 from tqdm.auto import tqdm
+import tensorflow as tf
 import numpy as np
-import matplotlib.pyplot as plt
+import random
 import copy
-from matplotlib import animation
-import matplotlib
-from IPython.display import HTML
 
+
+# reset random seeds
+def rand_seed_reset(env, i):
+    random.seed(i)
+    np.random.seed(i)
+    tf.random.set_seed(i)
+    env.task.random.seed(i)
+
+
+# disable GPUs for tensorflow (CPU is faster for small networks/batches on my machine)
+def disable_gpu():
+    tf.config.set_visible_devices([], 'GPU')
+    visible_devices = tf.config.get_visible_devices()
+    for device in visible_devices:
+        assert device.device_type != 'GPU'
 
 
 # get average episode return by sampling `iterations` episodes
@@ -24,11 +39,11 @@ def get_avg_return(agent, env, episodes=5, epsilon=.05):
 
 
 # fill buffer with random actions
-def initialize_buffer(agent, env):
+def initialize_buffer(agent, env, verbose=False):
     env = copy.deepcopy(env)  # don't mess with state of the original environment
-    print('initializing replay buffer...')
+    if verbose: print('initializing replay buffer...')
     time_step = env.reset()
-    for i in tqdm(range(agent.buffer_length)):
+    for _ in tqdm(range(agent.buffer_length)) if verbose else range(agent.buffer_length):
         action = agent.select_action(time_step, epsilon=1)
         time_step_next = env.step(action)
         agent.add_experience(time_step, action, time_step_next)
@@ -70,11 +85,13 @@ def train_optimistic_q(agent, target_q=100, iterations=1000, batch_size=128):
 
 def train(agent, env, episodes=100, action_repeats=4, steps_per_update=4, gamma=.99, batch_size=64,
           epsilon_start=1, epsilon_final=.1, epsilon_final_episode=50,
-          eval_interval=10, eval_epsilon=.1, eval_episodes=10, verbose=True):
+          eval_interval=10, eval_epsilon=.05, eval_episodes=5, verbose=True):
 
-    print('training agent...')
-    episode_num, all_returns = [], []
-    for i in tqdm(range(episodes)):
+    if verbose: print('training agent...')
+    avg_return, returns = get_avg_return(agent, env, epsilon=eval_epsilon, episodes=eval_episodes)
+    episode_num, all_returns = [0], [avg_return]
+
+    for i in tqdm(range(episodes)) if verbose else range(episodes):
         time_step = env.reset()
         done = False
         action_counter = action_repeats
@@ -99,63 +116,19 @@ def train(agent, env, episodes=100, action_repeats=4, steps_per_update=4, gamma=
 
         if (i+1) % eval_interval == 0:
             avg_return, returns = get_avg_return(agent, env, epsilon=eval_epsilon, episodes=eval_episodes)
-            episode_num.append(i)
+            episode_num.append(i+1)
             all_returns.append(returns)
             if verbose:
-                print('iteration {}, avg return {:.2f}, epsilon {:.2f}, returns: {}'.format(
-                    i + 1, avg_return, epsilon_temp, [int(x) for x in returns]))
+                # print('iteration {:5d}, avg return {:4.2f}, epsilon {:.2f}, returns: {}'.format(
+                #     i + 1, avg_return, epsilon_temp, [int(x) for x in returns]))
+                print('iteration {:4d}, avg return {:4.1f}'.format(i+1, avg_return))
     return episode_num, all_returns
 
 
-# show rollout
-def show_rollout(agent, env, epsilon=0):
-    env = copy.deepcopy(env)  # don't mess with state of the original environment
-    plt.figure()
-    time_step = env.reset()
-    imshow = plt.imshow(env.physics.render(camera_id=0))
-    episode_return = 0
-    while not time_step.last():
-        action = agent.select_action(time_step, epsilon=epsilon)
-        time_step = env.step(action)
-        episode_return += time_step.reward
-        imshow.set_data(env.physics.render(camera_id=0))
-        plt.pause(.001)
-    print('episode return: {:.2f}'.format(episode_return))
-
-
-# show rollout
-def show_rollout_jupyter(agent, env, epsilon=0, framerate=30, max_time=None):
-    env = copy.deepcopy(env)  # don't mess with state of the original environment
-    time_step = env.reset()
-    if max_time is None:
-        max_time = env._step_limit * env.physics.timestep()
-
-    # collect frames
-    frames = []
-    while not time_step.last() and env.physics.time()<max_time:
-        time_step = env.step(agent.select_action(time_step, epsilon=epsilon))
-        frames.append(env.physics.render(camera_id=0))
-
-    return display_video(frames, framerate=framerate)
-
-
-# show videos inline given frames
-# borrowed from: https://colab.research.google.com/github/deepmind/dm_control/blob/master/tutorial.ipynb#scrollTo=gKc1FNhKiVJX
-def display_video(frames, framerate=30):
-    height, width, _ = frames[0].shape
-    dpi = 70
-    orig_backend = matplotlib.get_backend()
-    matplotlib.use('Agg')  # Switch to headless 'Agg' to inhibit figure rendering.
-    fig, ax = plt.subplots(1, 1, figsize=(width / dpi, height / dpi), dpi=dpi)
-    matplotlib.use(orig_backend)  # Switch back to the original backend.
-    ax.set_axis_off()
-    ax.set_aspect('equal')
-    ax.set_position([0, 0, 1, 1])
-    im = ax.imshow(frames[0])
-    def update(frame):
-      im.set_data(frame)
-      return [im]
-    interval = 1000/framerate
-    anim = animation.FuncAnimation(fig=fig, func=update, frames=frames,
-                                   interval=interval, blit=True, repeat=False)
-    return HTML(anim.to_html5_video())
+# train a single agent on a particular domain and task
+def train_agent(domain_and_task, agent_args, train_args, verbose=True):
+    env = suite.load(*domain_and_task)
+    agent = agents.Agent(env.observation_spec(), env.action_spec(), **agent_args)
+    initialize_buffer(agent, env, verbose=False)
+    episode_num, returns = train(agent, env, **train_args, verbose=verbose)
+    return episode_num, returns, agent.q.get_weights()
