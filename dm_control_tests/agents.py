@@ -2,7 +2,7 @@ import random
 import tensorflow as tf
 import numpy as np
 from collections import deque
-
+import pickle
 
 """
 speed tests (s):
@@ -146,7 +146,3 @@ class Agent:
         grid = np.array(np.meshgrid(*axis_grids)).reshape(self.observation_dim, -1).transpose()
         predictions = self.q.predict(grid).reshape([bins] * self.observation_dim + [self.action_grid*self.action_dim])
         return predictions, axis_limits
-
-
-
-

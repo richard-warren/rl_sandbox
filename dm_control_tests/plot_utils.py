@@ -30,7 +30,7 @@ def show_rollout_jupyter(agent, env, epsilon=0, framerate=30, max_time=None):
     env = copy.deepcopy(env)  # don't mess with state of the original environment
     time_step = env.reset()
     if max_time is None:
-        max_time = env._step_limit * env.physics.timestep()
+        max_time = env._step_limit * env.physics.timestep() * env._n_sub_steps
 
     # collect frames
     frames = []

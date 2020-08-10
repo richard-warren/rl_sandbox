@@ -3,9 +3,10 @@ from dm_control import suite
 from tqdm.auto import tqdm
 import tensorflow as tf
 import numpy as np
+import pickle
 import random
 import copy
-
+import os
 
 # reset random seeds
 def rand_seed_reset(env, i):
@@ -53,8 +54,8 @@ def initialize_buffer(agent, env, verbose=False):
 
 
 # initialize q to output optimistic values throughout state space
-def train_optimistic_q(agent, target_q=100, iterations=1000, batch_size=128):
-    print('initializing q with optimistic values...')
+def train_optimistic_q(agent, target_q=100, iterations=1000, batch_size=128, verbose=True):
+    if verbose: print('initializing q with optimistic values...')
 
     # get statistics of replay buffer
     observations = np.vstack([np.vstack((i[0],i[3])) for i in agent.replay_buffer])
@@ -72,11 +73,11 @@ def train_optimistic_q(agent, target_q=100, iterations=1000, batch_size=128):
         values = agent.q.predict(smp)
         return np.mean(values)
 
-    print('pre training avg value: {:.2f}'.format(get_avg_value()))
-    for i in tqdm(range(iterations)):
+    if verbose: print('pre training avg value: {:.2f}'.format(get_avg_value()))
+    for i in tqdm(range(iterations)) if verbose else range(iterations):
         agent.q.fit(get_random_samples(batch_size), np.ones(batch_size)*target_q, verbose=False)
     agent.q_target.set_weights(agent.q.get_weights())
-    print('post training avg value: {:.2f}'.format(get_avg_value()))
+    if verbose: print('post training avg value: {:.2f}'.format(get_avg_value()))
 
     # reset optimizer state
     # todo: should save compile args as agent attribute to make sure none are missing here...
@@ -89,7 +90,7 @@ def train(agent, env, episodes=100, action_repeats=4, steps_per_update=4, gamma=
 
     if verbose: print('training agent...')
     avg_return, returns = get_avg_return(agent, env, epsilon=eval_epsilon, episodes=eval_episodes)
-    episode_num, all_returns = [0], [avg_return]
+    episode_num, all_returns = [0], [returns]
 
     for i in tqdm(range(episodes)) if verbose else range(episodes):
         time_step = env.reset()
@@ -126,9 +127,38 @@ def train(agent, env, episodes=100, action_repeats=4, steps_per_update=4, gamma=
 
 
 # train a single agent on a particular domain and task
-def train_agent(domain_and_task, agent_args, train_args, verbose=True):
+def create_and_train_agent(domain_and_task, agent_args, train_args, optimistic_q=None, save_path=None, verbose=True):
     env = suite.load(*domain_and_task)
     agent = agents.Agent(env.observation_spec(), env.action_spec(), **agent_args)
     initialize_buffer(agent, env, verbose=False)
+    if optimistic_q is not None:
+        train_optimistic_q(agent, target_q=optimistic_q, iterations=1000, batch_size=128, verbose=verbose)
     episode_num, returns = train(agent, env, **train_args, verbose=verbose)
-    return episode_num, returns, agent.q.get_weights()
+    weights = agent.q.get_weights()
+
+    # save
+    if save_path is not None:
+        agent.q.save(os.path.join(save_path, 'q_network'))
+        agent.q, agent.q_target = None, None  # so can be pickled
+        metadata = {
+            'domain_and_task': domain_and_task,
+            'agent_args': agent_args,
+            'train_args': train_args,
+            'optimistic_q': optimistic_q
+        }
+        with open(os.path.join(save_path, 'agent'), 'wb') as file:
+            pickle.dump(agent, file)
+        with open(os.path.join(save_path, 'metadata'), 'wb') as file:
+            pickle.dump(metadata, file)
+
+    return episode_num, returns, weights
+
+
+def load_agent(save_path):
+    with open(os.path.join(save_path, 'agent'), 'rb') as file:
+        agent = pickle.load(file)
+    agent.q = tf.keras.models.load_model(os.path.join(save_path, 'q_network'))
+    agent.q_target = copy.copy(agent.q)  # todo: should really and reload both q and q_target
+    with open(os.path.join(save_path, 'metadata'), 'rb') as file:
+        metadata = pickle.load(file)
+    return agent, metadata
