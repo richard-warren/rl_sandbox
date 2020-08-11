@@ -9,11 +9,10 @@ import copy
 import os
 
 # reset random seeds
-def rand_seed_reset(env, i):
+def rand_seed_reset(i):
     random.seed(i)
     np.random.seed(i)
     tf.random.set_seed(i)
-    env.task.random.seed(i)
 
 
 # disable GPUs for tensorflow (CPU is faster for small networks/batches on my machine)
@@ -86,11 +85,12 @@ def train_optimistic_q(agent, target_q=100, iterations=1000, batch_size=128, ver
 
 def train(agent, env, episodes=100, action_repeats=4, steps_per_update=4, gamma=.99, batch_size=64,
           epsilon_start=1, epsilon_final=.1, epsilon_final_episode=50,
-          eval_interval=10, eval_epsilon=.05, eval_episodes=5, verbose=True):
+          eval_interval=10, eval_epsilon=.05, eval_episodes=5, verbose=True, callback=None):
 
     if verbose: print('training agent...')
     avg_return, returns = get_avg_return(agent, env, epsilon=eval_epsilon, episodes=eval_episodes)
     episode_num, all_returns = [0], [returns]
+    callback_returns = []
 
     for i in tqdm(range(episodes)) if verbose else range(episodes):
         time_step = env.reset()
@@ -119,11 +119,10 @@ def train(agent, env, episodes=100, action_repeats=4, steps_per_update=4, gamma=
             avg_return, returns = get_avg_return(agent, env, epsilon=eval_epsilon, episodes=eval_episodes)
             episode_num.append(i+1)
             all_returns.append(returns)
-            if verbose:
-                # print('iteration {:5d}, avg return {:4.2f}, epsilon {:.2f}, returns: {}'.format(
-                #     i + 1, avg_return, epsilon_temp, [int(x) for x in returns]))
-                print('iteration {:4d}, avg return {:4.1f}'.format(i+1, avg_return))
-    return episode_num, all_returns
+            if verbose: print('iteration {:4d}, avg return {:4.1f}'.format(i+1, avg_return))
+            if callback is not None:
+                callback_returns.append(callback(agent, env))
+    return episode_num, all_returns, callback_returns if callback is not None else None
 
 
 # train a single agent on a particular domain and task
@@ -138,6 +137,7 @@ def create_and_train_agent(domain_and_task, agent_args, train_args, optimistic_q
 
     # save
     if save_path is not None:
+        os.mkdir(save_path)
         agent.q.save(os.path.join(save_path, 'q_network'))
         agent.q, agent.q_target = None, None  # so can be pickled
         metadata = {
@@ -151,7 +151,7 @@ def create_and_train_agent(domain_and_task, agent_args, train_args, optimistic_q
         with open(os.path.join(save_path, 'metadata'), 'wb') as file:
             pickle.dump(metadata, file)
 
-    return episode_num, returns, weights
+    return episode_num, returns
 
 
 def load_agent(save_path):

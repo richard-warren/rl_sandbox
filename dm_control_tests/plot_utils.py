@@ -42,24 +42,32 @@ def show_rollout_jupyter(agent, env, epsilon=0, framerate=30, max_time=None):
 
 
 # show videos inline given frames
-# borrowed from: https://colab.research.google.com/github/deepmind/dm_control/blob/master/tutorial.ipynb#scrollTo=gKc1FNhKiVJX
-def display_video(frames, framerate=30):
-    height, width, _ = frames[0].shape
-    dpi = 70
+# modified from: https://colab.research.google.com/github/deepmind/dm_control/blob/master/tutorial.ipynb#scrollTo=gKc1FNhKiVJX
+def display_video(frames, framerate=30, scaling=1, is_plot=False, imshow_args={}):
+    dpi=70
+    height, width = frames[0].shape[:2]
+
     orig_backend = matplotlib.get_backend()
     matplotlib.use('Agg')  # Switch to headless 'Agg' to inhibit figure rendering.
-    fig, ax = plt.subplots(1, 1, figsize=(width / dpi, height / dpi), dpi=dpi)
+    fig, ax = plt.subplots(1, 1, figsize=(5,5) if is_plot else (width/dpi, height/dpi), dpi=dpi)
     matplotlib.use(orig_backend)  # Switch back to the original backend.
-    ax.set_axis_off()
-    ax.set_aspect('equal')
-    ax.set_position([0, 0, 1, 1])
-    im = ax.imshow(frames[0])
+
+    if not is_plot:
+        ax.set_axis_off()
+        ax.set_aspect('equal')
+        ax.set_position([0, 0, 1, 1])
+    else:
+        ax.set_aspect('auto')
+
+    im = ax.imshow(frames[0], **imshow_args, aspect='auto')
     def update(frame):
       im.set_data(frame)
       return [im]
+
     interval = 1000/framerate
     anim = animation.FuncAnimation(fig=fig, func=update, frames=frames,
                                    interval=interval, blit=True, repeat=False)
+
     return HTML(anim.to_html5_video())
 
 
