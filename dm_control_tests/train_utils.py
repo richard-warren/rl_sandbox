@@ -86,14 +86,14 @@ def train_optimistic_q(agent, target_q=100, iterations=1000, batch_size=128, ver
 
 def train(agent, env, episodes=100, action_repeats=4, steps_per_update=4, gamma=.99, batch_size=64,
           epsilon_start=1, epsilon_final=.1, epsilon_final_episode=50,
-          eval_interval=10, eval_epsilon=.05, eval_episodes=5, verbose=True, callback=None):
+          eval_interval=10, eval_epsilon=.05, eval_episodes=5, verbose=True, progress_bar=True, callback=None):
 
-    if verbose: print('training agent...')
+    if progress_bar: print('training agent...')
     avg_return, returns = get_avg_return(agent, env, epsilon=eval_epsilon, episodes=eval_episodes)
     episode_num, all_returns = [0], [returns]
     callback_returns = []
 
-    for i in tqdm(range(episodes)) if verbose else range(episodes):
+    for i in tqdm(range(episodes)) if progress_bar else range(episodes):
         time_step = env.reset()
         done = False
         action_counter = action_repeats
@@ -131,13 +131,14 @@ def train(agent, env, episodes=100, action_repeats=4, steps_per_update=4, gamma=
 
 
 # train a single agent on a particular domain and task
-def create_and_train_agent(domain_and_task, agent_args, train_args, optimistic_q=None, save_path=None, verbose=True):
+def create_and_train_agent(domain_and_task, agent_args, train_args, optimistic_q=None,
+                           save_path=None, verbose=True, progress_bar=True):
     env = suite.load(*domain_and_task)
     agent = agents.Agent(env.observation_spec(), env.action_spec(), **agent_args)
     initialize_buffer(agent, env, verbose=False)
     if optimistic_q is not None:
         train_optimistic_q(agent, target_q=optimistic_q, iterations=1000, batch_size=128, verbose=verbose)
-    episode_num, returns = train(agent, env, **train_args, verbose=verbose)
+    episode_num, returns = train(agent, env, **train_args, verbose=verbose, progress_bar=progress_bar)
 
     # save
     if save_path is not None:
