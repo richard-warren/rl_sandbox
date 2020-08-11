@@ -122,7 +122,11 @@ def train(agent, env, episodes=100, action_repeats=4, steps_per_update=4, gamma=
             if verbose: print('iteration {:4d}, avg return {:4.1f}'.format(i+1, avg_return))
             if callback is not None:
                 callback_returns.append(callback(agent, env))
-    return episode_num, all_returns, callback_returns if callback is not None else None
+
+    if callback is None:
+        return episode_num, all_returns
+    else:
+        return episode_num, all_returns, callback_returns
 
 
 # train a single agent on a particular domain and task
@@ -133,7 +137,6 @@ def create_and_train_agent(domain_and_task, agent_args, train_args, optimistic_q
     if optimistic_q is not None:
         train_optimistic_q(agent, target_q=optimistic_q, iterations=1000, batch_size=128, verbose=verbose)
     episode_num, returns = train(agent, env, **train_args, verbose=verbose)
-    weights = agent.q.get_weights()
 
     # save
     if save_path is not None:
