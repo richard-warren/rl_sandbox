@@ -9,10 +9,11 @@ import copy
 import os
 
 # reset random seeds
-def rand_seed_reset(i):
+def rand_seed_reset(env, i):
     random.seed(i)
     np.random.seed(i)
     tf.random.set_seed(i)
+    env.task.random.seed(i)
 
 
 # disable GPUs for tensorflow (CPU is faster for small networks/batches on my machine)
@@ -112,7 +113,7 @@ def train(agent, env, episodes=100, action_repeats=4, steps_per_update=4, gamma=
 
             step_counter += 1
             if step_counter == steps_per_update:
-                agent.update(batch_size=batch_size, gamma=gamma)
+                agent.update(batch_size=batch_size, gamma=gamma)  # todo: steps_per_update interacts with gamma, which is not ideal
                 step_counter = 0
 
         if (i+1) % eval_interval == 0:
@@ -161,7 +162,7 @@ def load_agent(save_path):
     with open(os.path.join(save_path, 'agent'), 'rb') as file:
         agent = pickle.load(file)
     agent.q = tf.keras.models.load_model(os.path.join(save_path, 'q_network'))
-    agent.q_target = copy.copy(agent.q)  # todo: should really and reload both q and q_target
+    agent.q_target = copy.copy(agent.q)  # todo: should really save and reload both q and q_target
     with open(os.path.join(save_path, 'metadata'), 'rb') as file:
         metadata = pickle.load(file)
     return agent, metadata
