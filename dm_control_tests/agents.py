@@ -84,10 +84,10 @@ class Agent:
             # update targets for selected actions
             targets[np.arange(batch_size), a_idx] = rewards
             if self.double_dqn:
-                a_max = np.argmax(q_target_predictions, axis=1)  # action that maximizes q_target for next state
                 q_predictions = self.predict(observations_next, self.q)  # predictions based on q, not q_target
+                a_next = np.argmax(q_predictions, axis=1)  # action that maximizes q_target for next state
                 targets[np.arange(batch_size)[~done], a_idx[~done]] += \
-                    gamma * q_predictions[np.arange(batch_size)[~done], a_max[~done]]
+                    gamma * q_target_predictions[np.arange(batch_size)[~done], a_next[~done]]
             else:
                 targets[np.arange(batch_size)[~done], a_idx[~done]] += \
                     gamma * np.max(q_target_predictions[~done], axis=1)

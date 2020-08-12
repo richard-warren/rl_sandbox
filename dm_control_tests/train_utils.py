@@ -1,12 +1,16 @@
+from concurrent.futures import ProcessPoolExecutor
 from dm_control_tests import agents
+from itertools import repeat
 from dm_control import suite
 from tqdm.auto import tqdm
 import tensorflow as tf
 import numpy as np
 import pickle
 import random
+import shutil
 import copy
 import os
+
 
 # reset random seeds
 def rand_seed_reset(env, i):
@@ -155,8 +159,40 @@ def create_and_train_agent(domain_and_task, agent_args, train_args, optimistic_q
             pickle.dump(agent, file)
         with open(os.path.join(save_path, 'metadata'), 'wb') as file:
             pickle.dump(metadata, file)
-
     return episode_num, returns
+
+
+# train multiple agents in parallel on a particular domain and task
+def train_agents_parallel(domain_and_task, agent_args, train_args,
+                          optimistic_q=None, n_agents=12, n_workers=12,
+                          save_dir=None, overwrite=False):
+    if save_dir is not None:
+        if overwrite and os.path.exists(save_dir):
+            shutil.rmtree(save_dir)
+        os.mkdir(save_dir)
+        paths = ['{}/agent{:03d}'.format(save_dir, i) for i in range(n_agents)]
+    else:
+        paths = repeat(None, n_agents)
+
+    with ProcessPoolExecutor(max_workers=n_workers) as executor:
+        results = executor.map(create_and_train_agent,
+                               repeat(domain_and_task, n_agents),
+                               repeat(agent_args),
+                               repeat(train_args),
+                               repeat(optimistic_q),
+                               paths,
+                               repeat(False),
+                               [True] + list(repeat(False, n_agents - 1)))  # only progress bar for first thread
+        results = [r for r in results]
+    episode_num = results[0][0]
+    avg_returns = np.array([np.array(r[1]).mean(1) for r in results])
+
+    if save_dir is not None:
+        training_data = {'episode_num': episode_num, 'avg_returns': avg_returns}
+        with open(os.path.join(save_dir, 'training_data'), 'wb') as file:
+            pickle.dump(training_data, file)
+
+    return episode_num, avg_returns
 
 
 def load_agent(save_path):
