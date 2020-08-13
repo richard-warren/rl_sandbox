@@ -28,7 +28,7 @@ def disable_gpu():
         assert device.device_type != 'GPU'
 
 
-# get average episode return by sampling `iterations` episodes
+# compute average return by sampling episodes
 def get_avg_return(agent, env, episodes=5, epsilon=.05):
     env = copy.deepcopy(env)  # don't mess with state of the original environment
     returns = []
@@ -43,7 +43,7 @@ def get_avg_return(agent, env, episodes=5, epsilon=.05):
     return sum(returns) / len(returns), returns
 
 
-# fill buffer with random actions
+# fill replay buffer with random actions
 def initialize_buffer(agent, env, verbose=False):
     env = copy.deepcopy(env)  # don't mess with state of the original environment
     if verbose: print('initializing replay buffer...')
