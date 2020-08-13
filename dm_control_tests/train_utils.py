@@ -30,7 +30,7 @@ def disable_gpu():
 
 # compute average return by sampling episodes
 def get_avg_return(agent, env, episodes=5, epsilon=.05):
-    env = copy.deepcopy(env)  # don't mess with state of the original environment
+    env = copy.deepcopy(env)  # don't mess with state of original env
     returns = []
     for i in range(episodes):
         time_step = env.reset()
@@ -45,7 +45,7 @@ def get_avg_return(agent, env, episodes=5, epsilon=.05):
 
 # fill replay buffer with random actions
 def initialize_buffer(agent, env, verbose=False):
-    env = copy.deepcopy(env)  # don't mess with state of the original environment
+    env = copy.deepcopy(env)  # don't mess with state of original env
     if verbose: print('initializing replay buffer...')
     time_step = env.reset()
     for _ in tqdm(range(agent.buffer_length)) if verbose else range(agent.buffer_length):
@@ -57,7 +57,7 @@ def initialize_buffer(agent, env, verbose=False):
             env.reset()
 
 
-# initialize q to output optimistic values throughout state space
+# initialize q to output values close to target_q throughout state space
 def train_optimistic_q(agent, target_q=100, iterations=1000, batch_size=128, verbose=True):
     if verbose: print('initializing q with optimistic values...')
 
@@ -71,23 +71,28 @@ def train_optimistic_q(agent, target_q=100, iterations=1000, batch_size=128, ver
         smp = np.random.uniform(size=(num_samples,agent.observation_dim))
         return np.multiply(smp, obs_ptp) + obs_min
 
-    # get average output of network (on uniformly sampled random inputs)
-    def get_avg_value(num_samples=100):
-        smp = get_random_samples(num_samples)
-        values = agent.q.predict(smp)
-        return np.mean(values)
+    # get average output of network prior to training (on uniformly sampled random inputs)
+    if verbose:
+        def get_avg_value(num_samples=100):
+            smp = get_random_samples(num_samples)
+            values = agent.q.predict(smp)
+            return np.mean(values)
 
-    if verbose: print('pre training avg value: {:.2f}'.format(get_avg_value()))
-    for i in tqdm(range(iterations)) if verbose else range(iterations):
+        print('pre training avg value: {:.2f}'.format(get_avg_value()))
+
+    for _ in tqdm(range(iterations)) if verbose else range(iterations):
         agent.q.fit(get_random_samples(batch_size), np.ones(batch_size)*target_q, verbose=False)
     agent.q_target.set_weights(agent.q.get_weights())
-    if verbose: print('post training avg value: {:.2f}'.format(get_avg_value()))
+
+    if verbose:
+        print('post training avg value: {:.2f}'.format(get_avg_value()))
 
     # reset optimizer state
-    # todo: should save compile args as agent attribute to make sure none are missing here...
+    # todo: should save original compile args to make sure none are missing here...
     agent.q.compile(loss=agent.q.loss, optimizer=agent.q.optimizer)
 
 
+# train DQN agent
 def train(agent, env, episodes=100, action_repeats=4, steps_per_update=4, gamma=.99, batch_size=64,
           epsilon_start=1, epsilon_final=.1, epsilon_final_episode=50,
           eval_interval=10, eval_epsilon=.05, eval_episodes=5, verbose=True, progress_bar=True, callback=None):
@@ -117,7 +122,7 @@ def train(agent, env, episodes=100, action_repeats=4, steps_per_update=4, gamma=
 
             step_counter += 1
             if step_counter == steps_per_update:
-                agent.update(batch_size=batch_size, gamma=gamma)  # todo: steps_per_update interacts with gamma, which is not ideal
+                agent.update(batch_size=batch_size, gamma=gamma)
                 step_counter = 0
 
         if (i+1) % eval_interval == 0:

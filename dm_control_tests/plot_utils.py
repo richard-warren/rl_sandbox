@@ -9,7 +9,6 @@ import matplotlib
 import copy
 
 
-
 # show rollout
 def show_rollout(agent, env, epsilon=0):
     env = copy.deepcopy(env)  # don't mess with state of the original environment
@@ -26,9 +25,9 @@ def show_rollout(agent, env, epsilon=0):
     print('episode return: {:.2f}'.format(episode_return))
 
 
-# show rollout
-def show_rollout_jupyter(agent, env, epsilon=0, framerate=30, max_time=None, rand_seed=None):
-    env = copy.deepcopy(env)  # don't mess with state of the original environment
+# show rollout in ipython notebook
+def show_rollout_ipython(agent, env, epsilon=0, framerate=30, max_time=None, rand_seed=None):
+    env = copy.deepcopy(env)  # don't mess with state of original env
     if rand_seed is not None:
         train_utils.rand_seed_reset(env, rand_seed)
     if max_time is None:
@@ -44,12 +43,11 @@ def show_rollout_jupyter(agent, env, epsilon=0, framerate=30, max_time=None, ran
     return display_video(frames, framerate=framerate)
 
 
-# show videos inline given frames
+# show videos in ipython given frames
 # modified from: https://colab.research.google.com/github/deepmind/dm_control/blob/master/tutorial.ipynb#scrollTo=gKc1FNhKiVJX
 def display_video(frames, framerate=30, is_plot=False, imshow_args={}, xlabel=None, ylabel=None):
     dpi=70
     height, width = frames[0].shape[:2]
-
     orig_backend = matplotlib.get_backend()
     matplotlib.use('Agg')  # Switch to headless 'Agg' to inhibit figure rendering.
     fig, ax = plt.subplots(1, 1, figsize=(5,5) if is_plot else (width/dpi, height/dpi), dpi=dpi);
@@ -73,7 +71,6 @@ def display_video(frames, framerate=30, is_plot=False, imshow_args={}, xlabel=No
     interval = 1000/framerate
     anim = animation.FuncAnimation(fig=fig, func=update, frames=frames,
                                    interval=interval, blit=True, repeat=False)
-
     return HTML(anim.to_html5_video())
 
 

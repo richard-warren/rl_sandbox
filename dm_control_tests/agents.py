@@ -16,6 +16,7 @@ speed tests (s):
 
 
 class Agent:
+    """ DQN Agent """
 
     def __init__(self, observation_spec, action_spec, action_grid=2, learning_rate=.001, q_update_interval=100,
                  buffer_length=10000, units_per_layer=(24,48), double_dqn=False):
@@ -51,7 +52,6 @@ class Agent:
             observation = self.get_observation_vector(time_step)
             prediction = self.predict(observation[np.newaxis,:], self.q)[0]
             action_idx = np.argmax(prediction)
-
         return self.action_from_index(action_idx)
 
     def add_experience(self, time_step, action, time_step_next):
@@ -76,7 +76,7 @@ class Agent:
             observations_next = np.array([i[3] for i in batch])
             done = np.array([i[4] for i in batch], dtype='bool')
 
-            # stack and predict observations and observations_next at once to increase speed
+            # predict for observations and observations_next at same time to increase speed
             temp = self.predict(np.vstack((observations, observations_next)), self.q_target)
             targets = temp[:batch_size]
             q_target_predictions = temp[batch_size:]
@@ -84,8 +84,10 @@ class Agent:
             # update targets for selected actions
             targets[np.arange(batch_size), a_idx] = rewards
             if self.double_dqn:
-                q_predictions = self.predict(observations_next, self.q)  # predictions based on q, not q_target
-                a_next = np.argmax(q_predictions, axis=1)  # action that maximizes q_target for next state
+                # select actions based on q (not q_target) predictions
+                q_predictions = self.predict(observations_next, self.q)
+                a_next = np.argmax(q_predictions, axis=1)
+                # but evaluate actions using q_target...
                 targets[np.arange(batch_size)[~done], a_idx[~done]] += \
                     gamma * q_target_predictions[np.arange(batch_size)[~done], a_next[~done]]
             else:
@@ -97,11 +99,12 @@ class Agent:
 
             # update q_target if enough updates
             self.total_updates += 1
-            if self.total_updates%self.q_update_interval == 0:
+            if self.total_updates % self.q_update_interval == 0:
                 self.q_target.set_weights(self.q.get_weights())
 
     def make_model(self, units_per_layer=(24,48)):
-        """ Make Q function MLP with softmax output over discrete actions """
+        """ Make Q function MLP """
+        # todo: batch norm, activation options...
         model = tf.keras.Sequential()
         units_per_layer = (units_per_layer,) if isinstance(units_per_layer, int) else units_per_layer  # if only one hidden layer requested
         model.add(tf.keras.layers.Dense(units_per_layer[0], activation='tanh', input_dim=self.observation_dim))
@@ -111,12 +114,12 @@ class Agent:
         return model
 
     def index_from_action(self, action):
-        """ Convert action to int index """
+        """ Convert action to index """
         action = [action] if not isinstance(action[0], list) else action
         return int(np.where((self.actions == np.array(action)).all(axis=1))[0])
 
     def action_from_index(self, action_idx):
-        """ Convert int index(es) to action """
+        """ Convert index(es) to action(s) """
         return self.actions[np.array(action_idx)]
 
     @staticmethod
@@ -126,7 +129,11 @@ class Agent:
 
     @staticmethod
     def predict(x, model, fast_predict=True):
-        """ q network prediction // fast_predict uses numpy for prediction, which is faster for small networks """
+        """
+        Predict action values for x using model (either self.q or self.q_target)
+        fast_predict uses numpy for prediction, which is faster for small networks / batch sizes
+        """
+        # todo: should check model activation fcn to make sure correct one is applied
         if fast_predict:
             weights = [layer.get_weights()[0] for layer in model.layers]
             biases = [layer.get_weights()[1] for layer in model.layers]

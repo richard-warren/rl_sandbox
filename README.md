@@ -10,6 +10,6 @@ This repo contains implementations of several **reinforcement learning** algorit
   - [Double DQN](https://arxiv.org/abs/1509.06461)
 
 # demos
-- [gridworld](https://github.com/richard-warren/rl_sandbox/blob/master/gridworld_demo.ipynb)
-- [dm_control]()
+- [gridworld demo](https://colab.research.google.com/github/richard-warren/rl_sandbox/blob/master/gridworld_demo.ipynb)
+- [dm_control demo](https://colab.research.google.com/github/richard-warren/rl_sandbox/blob/master/dm_control_demo.ipynb)
 
