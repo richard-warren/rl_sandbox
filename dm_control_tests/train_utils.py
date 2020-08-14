@@ -57,41 +57,6 @@ def initialize_buffer(agent, env, verbose=False):
             env.reset()
 
 
-# initialize q to output values close to target_q throughout state space
-def train_optimistic_q(agent, target_q=100, iterations=1000, batch_size=128, verbose=True):
-    if verbose: print('initializing q with optimistic values...')
-
-    # get statistics of replay buffer
-    observations = np.vstack([np.vstack((i[0],i[3])) for i in agent.replay_buffer])
-    obs_min = np.min(observations, axis=0)
-    obs_ptp = np.ptp(observations, axis=0)
-
-    # sample from hyper-rectangle spanning buffer data
-    def get_random_samples(num_samples=32):
-        smp = np.random.uniform(size=(num_samples,agent.observation_dim))
-        return np.multiply(smp, obs_ptp) + obs_min
-
-    # get average output of network prior to training (on uniformly sampled random inputs)
-    if verbose:
-        def get_avg_value(num_samples=100):
-            smp = get_random_samples(num_samples)
-            values = agent.q.predict(smp)
-            return np.mean(values)
-
-        print('pre training avg value: {:.2f}'.format(get_avg_value()))
-
-    for _ in tqdm(range(iterations)) if verbose else range(iterations):
-        agent.q.fit(get_random_samples(batch_size), np.ones(batch_size)*target_q, verbose=False)
-    agent.q_target.set_weights(agent.q.get_weights())
-
-    if verbose:
-        print('post training avg value: {:.2f}'.format(get_avg_value()))
-
-    # reset optimizer state
-    # todo: should save original compile args to make sure none are missing here...
-    agent.q.compile(loss=agent.q.loss, optimizer=agent.q.optimizer)
-
-
 # train DQN agent
 def train(agent, env, episodes=100, action_repeats=4, steps_per_update=4, gamma=.99, batch_size=64,
           epsilon_start=1, epsilon_final=.1, epsilon_final_episode=50,
@@ -208,3 +173,37 @@ def load_agent(save_path):
     with open(os.path.join(save_path, 'metadata'), 'rb') as file:
         metadata = pickle.load(file)
     return agent, metadata
+
+
+# initialize q to output values close to target_q throughout state space
+def train_optimistic_q(agent, target_q=100, iterations=1000, batch_size=128, verbose=True):
+    if verbose: print('initializing q with optimistic values...')
+
+    # get statistics of replay buffer
+    observations = np.vstack([np.vstack((i[0],i[3])) for i in agent.replay_buffer])
+    obs_min = np.min(observations, axis=0)
+    obs_ptp = np.ptp(observations, axis=0)
+
+    # sample from hyper-rectangle spanning buffer data
+    def get_random_samples(num_samples=32):
+        smp = np.random.uniform(size=(num_samples,agent.observation_dim))
+        return np.multiply(smp, obs_ptp) + obs_min
+
+    # get average output of network prior to training (on uniformly sampled random inputs)
+    if verbose:
+        def get_avg_value(num_samples=100):
+            smp = get_random_samples(num_samples)
+            values = agent.q.predict(smp)
+            return np.mean(values)
+        print('pre training avg value: {:.2f}'.format(get_avg_value()))
+
+    for _ in tqdm(range(iterations)) if verbose else range(iterations):
+        agent.q.fit(get_random_samples(batch_size), np.full((batch_size, agent.action_grid*agent.action_dim), target_q), verbose=False)
+    agent.q_target.set_weights(agent.q.get_weights())
+
+    if verbose:
+        print('post training avg value: {:.2f}'.format(get_avg_value()))
+
+    # reset optimizer state
+    # todo: should save original compile args to make sure none are missing here...
+    agent.q.compile(loss=agent.q.loss, optimizer=agent.q.optimizer)
