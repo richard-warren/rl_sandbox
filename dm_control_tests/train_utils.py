@@ -2,7 +2,7 @@ from concurrent.futures import ProcessPoolExecutor
 from dm_control_tests import agents
 from itertools import repeat
 from dm_control import suite
-from tqdm.auto import tqdm
+from tqdm import tqdm
 import tensorflow as tf
 import numpy as np
 import pickle
@@ -97,7 +97,7 @@ def train(agent, env, episodes=100, action_repeats=4, steps_per_update=4, gamma=
           epsilon_start=1, epsilon_final=.1, epsilon_final_episode=50,
           eval_interval=10, eval_epsilon=.05, eval_episodes=5, verbose=True, progress_bar=True, callback=None):
 
-    if progress_bar: print('training agent...')
+    if progress_bar: print('training agent(s)...')
     avg_return, returns = get_avg_return(agent, env, epsilon=eval_epsilon, episodes=eval_episodes)
     episode_num, all_returns = [0], [returns]
     callback_returns = []

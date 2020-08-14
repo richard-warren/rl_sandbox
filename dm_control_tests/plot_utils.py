@@ -1,10 +1,7 @@
-from dm_control_tests import agents
+from dm_control_tests import train_utils
 from matplotlib import animation
 from IPython.display import HTML
 import matplotlib.pyplot as plt
-from dm_control import suite
-import numpy as np
-from dm_control_tests import train_utils
 import matplotlib
 import copy
 
