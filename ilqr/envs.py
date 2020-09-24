@@ -1,7 +1,7 @@
 from matplotlib import animation
 from IPython.display import HTML
 import matplotlib.pyplot as plt
-# from dm_control import suite
+from dm_control import suite
 import numpy as np
 import matplotlib
 import ipdb
@@ -16,14 +16,17 @@ class Env:
 
     def simulate(self, state, action):
         """ get subsequent state from (state, action) """
-        self.set_state(state)
+        original_state = self.state.copy()
+        self.state = state.copy()
         state_next = self.step(action)
+        self.state = original_state.copy()  # put state back where it was
         return state_next
 
     def rollout(self, actions):
+        """ compute states, costs, and cost derivatives for trajectory controlled by `actions` """
         # todo: check that doesn't exceed max_steps
         states, costs, costs_derivs = [], [], []
-        states.append(self.reset())
+        states.append(self.reset(reset_target=False))
 
         for action in actions:
             cost, cost_derivs = self.cost(states[-1], action)
@@ -37,8 +40,8 @@ class Env:
 
         return states, costs, costs_derivs
 
-    def state_derivs(self, state, action):  # meta-class
-        """ f_x, f_u """
+    def state_derivs(self, state, action):
+        """ compute derivates of state wrt states and controls (f_x, f_u) """
         state = np.array(state, dtype='float64')
         action = np.array(action, dtype='float64')
 
@@ -51,7 +54,8 @@ class Env:
         return dict(f_x=f_x, f_u=f_u)
 
     @staticmethod
-    def finite_differences(fcn, x, eps=1e-4):  # meta-class
+    def finite_differences(fcn, x, eps=1e-4):  # if eps too small derivs may be zero
+        """ estimate gradient of fcn wrt x via finite differences """
         # todo: vectorize (assuming fcn is vectorized)
         x = np.array(x)
         diffs = []
@@ -63,8 +67,13 @@ class Env:
             diffs.append((fcn(x_inc) - fcn(x_dec)) / (eps*2))
         return np.array(diffs).T
 
+    def show(self):
+        plt.imshow(self.render())
+        plt.axis('off')
+
 
 class PointMass(Env):
+    """ point mass in plane with target. cost is distant to target """
 
     def __init__(self, dt=.05, arena_size=(1,1), mass=1, max_time=10):
         self.mass = mass
@@ -72,7 +81,7 @@ class PointMass(Env):
         self.xlim = (-arena_size[0]/2, arena_size[0]/2)
         self.ylim = (-arena_size[1]/2, arena_size[1]/2)
         self.max_steps = int(max_time // dt)
-        self.reset()  # set initial target and point positions
+        self.reset()  # set initial state and target positions
 
         # graphic objects
         self.fig = plt.figure(figsize=(2.5,2.5))
@@ -88,7 +97,7 @@ class PointMass(Env):
         plt.close()
 
     def reset(self, reset_target=True):
-        self.t = 0
+        """ reset point to initial state and target to random position """
         self.state = np.array([0,0,0,0], dtype='float64')  # (pos_x, pos_y, vel_x, vel_y)
         if reset_target:
             self.target = np.random.uniform((self.xlim[0], self.ylim[0]),
@@ -96,16 +105,17 @@ class PointMass(Env):
         return self.state.copy()
 
     def step(self, action):
+        """ advance state via F=ma """
         self.state[2:] += np.array(action, dtype='float64') * self.dt
         self.state[:2] += self.state[2:] * self.dt
-        self.t += self.dt
         return self.state.copy()
 
     def cost(self, state, action):
-        cost = 0.5 * ((self.state[:2] - self.target)**2).sum()
+        """ compute cost and cost derivaties """
+        cost = 0.5 * ((state[:2] - self.target)**2).sum()
         derivs = {
-            'l_x': np.concatenate(((self.state[:2]-self.target), [0,0])),
-            'l_u': np.zeros(2),
+            'l_x':  np.concatenate(((state[:2]-self.target), [0,0])),
+            'l_u':  np.zeros(2),
             'l_ux': np.zeros((2,4)),
             'l_xx': np.diag((1,1,0,0)),
             'l_uu': np.zeros((2,2))
@@ -113,21 +123,19 @@ class PointMass(Env):
         return cost, derivs
 
     def cost_final(self, state):
-        cost = 0.5 * ((self.state[:2] - self.target)**2).sum()
+        """ compute final cost and final cost derivaties """
+        cost = 0.5 * ((state[:2] - self.target)**2).sum()
         derivs = {
-            'l_x': np.concatenate(((self.state[:2]-self.target), [0,0])),
-            'l_u': np.zeros(2),
+            'l_x':  np.concatenate(((state[:2]-self.target), [0,0])),
+            'l_u':  np.zeros(2),
             'l_ux': np.zeros((2,4)),
             'l_xx': np.diag((1,1,0,0)),
             'l_uu': np.zeros((2,2))
         }
         return cost, derivs
 
-    def set_state(self, state):
-        """ set state without changing target position """
-        self.state = state.copy()
-
-    def render(self, dpi=200, show_plot=False):
+    def render(self, dpi=200):
+        """ render image of current state """
         pos, vel = self.state[:2], self.state[2:]
 
         # update graphics
@@ -145,48 +153,109 @@ class PointMass(Env):
         img = np.reshape(np.frombuffer(io_buf.getvalue(), dtype=np.uint8), newshape=pix_dimensions)
         io_buf.close()
 
-        if show_plot:
-            plt.imshow(img)
-            plt.axis('off')
-
         return img
 
 
-# class Arm(Env):
-#
-#     def __init__(self):
-#         self.env = suite.load('reacher', 'easy')
-#         self.env.reset()  # initial randomization appears to require this line... :/
-#         self.max_steps = self.env._step_limit
-#         self.Q = np.diag((0,0,1,1,0,0))  # only weight distance from target
-#         self.R = np.zeros((6,6))         # no control costs for now
-#
-#     def reset(self):
-#         pass
-#
-#     def step(self, action):
-#         state = self.parse_timestep(self.env.step(action))
-#         return state
-#
-#     def cost(self, state, action):
-#         # J(t) = .5*(x^TQx + uTRt)
-#         # J =  .5 * np.dot(self.state,  np.matmul(self.Q, self.s self.state))
-#         # J += .5 * np.dot(self.action, np.matmul(self.R, self.action))
-#         return 0
-#
-#     def cost_final(self, state):
-#         J =  .5 * np.dot(self.state,  np.matmul(self.Q, self.state))
-#
-#     def set_state(self, state):
-#         """ set state without changing target position """
-#         with self.env.physics.reset_context():
-#             self.env.physics.data.qpos[:] = state[:2]
-#             self.env.physics.data.qvel[:] = state[-2:]
-#
-#     @staticmethod
-#     def parse_timestep(time_step):
-#         """ extract state (p0, p1, to_target0, to_target1, v0, v1) """
-#         return np.concatenate(list(time_step.observation.values()))
-#
-#     def render(self):
-#         return self.env.physics.render(camera_id=0)
+class Arm(Env):
+    """ two link arm. wrapper from dm_control `reacher` """
+
+    def __init__(self, control_wgt=0):
+        self.env = suite.load('reacher', 'easy')
+        self.reset()
+        self.max_steps = 250 # int(self.env._step_limit) !!! temp
+        self.dt = self.env.physics.timestep()
+        self.control_wgt = control_wgt
+
+    @property
+    def state(self):
+        """ get state (pos0, pos1, vel0, vel1) """
+        return self.env.physics.get_state()
+
+    @state.setter
+    def state(self, state):
+        """ set state without changing target position """
+        with self.env.physics.reset_context():
+            self.env.physics.data.qpos[:] = state[:2].copy()
+            self.env.physics.data.qvel[:] = state[2:].copy()
+
+    def reset(self, reset_target=True):
+        """ reset state (target position randomized but arm set to default state) """
+
+        if not reset_target:
+            target_pos = (self.env.physics.named.model.geom_pos['target', 'x'],
+                          self.env.physics.named.model.geom_pos['target', 'y'])
+            self.env.reset()
+
+            # reset target
+            with self.env.physics.reset_context():
+                self.env.physics.named.model.geom_pos['target', 'x'] = target_pos[0]
+                self.env.physics.named.model.geom_pos['target', 'y'] = target_pos[1]
+        else:
+            self.env.reset()
+
+        # reset arm state
+        self.state = [0,0,0,0]
+
+        return self.state.copy()
+
+    def step(self, action):
+        """ advance state via physics engine """
+        self.env.step(action)
+        return self.state
+
+    def cost(self, state, action, compute_derivs=True):
+        """ compute cost and cost derivaties """
+        self.state = state
+        cost = 0.5 * self.env.physics.finger_to_target_dist()**2
+
+        if compute_derivs:
+            fcn_x = lambda x: self.cost(x, action, compute_derivs=False)[0]
+            l_x = self.finite_differences(fcn_x, state)
+
+            fcn_xx = lambda x: self.finite_differences(fcn_x, x)
+            l_xx = self.finite_differences(fcn_xx, state)
+
+            derivs = {
+                'l_x':  l_x,
+                'l_u':  2*np.array(action)*self.control_wgt,
+                'l_ux': np.zeros((2,4)),
+                'l_xx': l_xx,
+                'l_uu': np.full((2,2), 2*self.control_wgt),
+            }
+        else:
+            derivs = None
+
+        return cost, derivs
+
+    def cost_final(self, state, compute_derivs=True):
+        """ compute final cost and final cost derivaties """
+        self.state = state
+        cost = 0.5 * self.env.physics.finger_to_target_dist()**2
+
+        if compute_derivs:
+            fcn_x = lambda x: self.cost_final(x, compute_derivs=False)[0]
+            l_x = self.finite_differences(fcn_x, state)
+
+            fcn_xx = lambda x: self.finite_differences(fcn_x, x)
+            l_xx = self.finite_differences(fcn_xx, state)
+
+            derivs = {
+                'l_x':  l_x,
+                'l_u':  np.zeros(2),
+                'l_ux': np.zeros((2,4)),
+                'l_xx': l_xx,
+                'l_uu': np.zeros((2,2))
+            }
+        else:
+            derivs = None
+
+        return cost, derivs
+
+    def render(self):
+        """ render image of current state """
+        return self.env.physics.render(camera_id=0)
+
+
+class Test:
+    def __init__(self):
+        self._x = 0
