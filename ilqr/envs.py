@@ -54,7 +54,7 @@ class Env:
         return dict(f_x=f_x, f_u=f_u)
 
     @staticmethod
-    def finite_differences(fcn, x, eps=1e-4):  # if eps too small derivs may be zero
+    def finite_differences(fcn, x, eps=1e-3):  # if eps too small derivs may be zero
         """ estimate gradient of fcn wrt x via finite differences """
         # todo: vectorize (assuming fcn is vectorized)
         x = np.array(x)
@@ -159,12 +159,11 @@ class PointMass(Env):
 class Arm(Env):
     """ two link arm. wrapper from dm_control `reacher` """
 
-    def __init__(self, control_wgt=0):
+    def __init__(self):
         self.env = suite.load('reacher', 'easy')
         self.reset()
-        self.max_steps = 250 # int(self.env._step_limit) !!! temp
+        self.max_steps = 100 #int(self.env._step_limit)
         self.dt = self.env.physics.timestep()
-        self.control_wgt = control_wgt
 
     @property
     def state(self):
@@ -181,20 +180,18 @@ class Arm(Env):
     def reset(self, reset_target=True):
         """ reset state (target position randomized but arm set to default state) """
 
-        if not reset_target:
-            target_pos = (self.env.physics.named.model.geom_pos['target', 'x'],
-                          self.env.physics.named.model.geom_pos['target', 'y'])
-            self.env.reset()
+        self.env.reset()
 
-            # reset target
-            with self.env.physics.reset_context():
-                self.env.physics.named.model.geom_pos['target', 'x'] = target_pos[0]
-                self.env.physics.named.model.geom_pos['target', 'y'] = target_pos[1]
+        if reset_target:
+            self.target_pos = (self.env.physics.named.model.geom_pos['target', 'x'],
+                               self.env.physics.named.model.geom_pos['target', 'y'])
         else:
-            self.env.reset()
+            with self.env.physics.reset_context():
+                self.env.physics.named.model.geom_pos['target', 'x'] = self.target_pos[0]
+                self.env.physics.named.model.geom_pos['target', 'y'] = self.target_pos[1]
 
         # reset arm state
-        self.state = [0,0,0,0]
+        self.state = [np.pi/2, 0, 0, 0]  # pointing straight up with no velocity
 
         return self.state.copy()
 
@@ -206,7 +203,7 @@ class Arm(Env):
     def cost(self, state, action, compute_derivs=True):
         """ compute cost and cost derivaties """
         self.state = state
-        cost = 0.5 * self.env.physics.finger_to_target_dist()**2
+        cost = 0.5 * pow(self.env.physics.finger_to_target_dist(), 2)
 
         if compute_derivs:
             fcn_x = lambda x: self.cost(x, action, compute_derivs=False)[0]
@@ -215,12 +212,26 @@ class Arm(Env):
             fcn_xx = lambda x: self.finite_differences(fcn_x, x)
             l_xx = self.finite_differences(fcn_xx, state)
 
-            derivs = {
+            # derivs = {  # no trajectory costs... only final costs...
+            #     'l_x':  np.zeros(4),
+            #     'l_u':  np.zeros(2),
+            #     'l_ux': np.zeros((2,4)),
+            #     'l_xx': np.zeros((4,4)),
+            #     'l_uu': np.zeros((2,2)),
+            # }
+            # derivs = {  # only control costs...
+            #     'l_x':  np.zeros(4),
+            #     'l_u':  2*np.array(action)*self.control_wgt,
+            #     'l_ux': np.zeros((2,4)),
+            #     'l_xx': np.zeros((4,4)),
+            #     'l_uu': np.full((2,2), 2*self.control_wgt),
+            # }
+            derivs = {  # only state costs
                 'l_x':  l_x,
-                'l_u':  2*np.array(action)*self.control_wgt,
+                'l_u':  np.zeros(2),
                 'l_ux': np.zeros((2,4)),
                 'l_xx': l_xx,
-                'l_uu': np.full((2,2), 2*self.control_wgt),
+                'l_uu': np.zeros((2,2)),
             }
         else:
             derivs = None
@@ -230,7 +241,7 @@ class Arm(Env):
     def cost_final(self, state, compute_derivs=True):
         """ compute final cost and final cost derivaties """
         self.state = state
-        cost = 0.5 * self.env.physics.finger_to_target_dist()**2
+        cost = 0.5 * pow(self.env.physics.finger_to_target_dist(), 2)
 
         if compute_derivs:
             fcn_x = lambda x: self.cost_final(x, compute_derivs=False)[0]
