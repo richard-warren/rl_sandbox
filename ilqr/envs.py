@@ -49,9 +49,10 @@ class Env:
 
     def cost(self, state, action, compute_derivs=True):
         """ compute cost and cost derivatives """
-        control_wgt = 1e-2
+        control_wgt = 1e-3
         state_wgt = 1
         self.state = np.array(state, dtype='float64')
+        action = np.array(action, dtype='float64')
         cost =  0.5 * pow(self.target_distance, 2)        * state_wgt
         cost += sum(np.array(action, dtype='float64')**2) * control_wgt
 
@@ -98,8 +99,8 @@ class Env:
         return cost, derivs
 
     @staticmethod
-    def finite_differences(fcn, x, eps=1e-4):  # if eps too small derivs may be zero
-        """ estimate gradient of fcn wrt x via finite differences """
+    def finite_differences(fcn, x, eps=1e-2):  # if eps too small derivs may be zero
+        """ estimate gradient of fcn wrt x v fia finite differences """
         # todo: vectorize (assuming fcn is vectorized)
         x = np.array(x, dtype='float64')
         diffs = []
@@ -212,7 +213,8 @@ class Arm(Env):
 
     def __init__(self, initial_state=[np.pi/2,0,0,0]):
         self.initial_state = initial_state
-        self.env = suite.load('reacher', 'easy')
+        # self.env = suite.load('reacher', 'easy')
+        self.env = suite.load('point_mass', 'easy')
         self.reset()
         self.max_steps = 200  #int(self.env._step_limit)
         self.dt = self.env.physics.timestep()
@@ -231,8 +233,8 @@ class Arm(Env):
 
     @property
     def target(self):
-        target = (self.env.physics.named.model.geom_pos['target', 'x'],
-                  self.env.physics.named.model.geom_pos['target', 'y'])
+        target = [self.env.physics.named.model.geom_pos['target', 'x'],
+                  self.env.physics.named.model.geom_pos['target', 'y']]
         return target
 
     @target.setter
@@ -243,12 +245,12 @@ class Arm(Env):
 
     @property
     def target_distance(self):
-        return self.env.physics.finger_to_target_dist()
+        # return self.env.physics.finger_to_target_dist()
+        return self.env.physics.mass_to_target_dist()
 
     def reset(self, reset_target=True):
         """ reset state (target position randomized but arm set to default state) """
-
-        original_target = self.target
+        original_target = self.target.copy()
         self.env.reset()
         if not reset_target:
             self.target = original_target
@@ -258,14 +260,12 @@ class Arm(Env):
 
     def step(self, action):
         """ advance state via physics engine """
+        sig = lambda x: (1 / (1 + np.exp(-4*x))) * 2 - 1  # squash between 0 and 1
+        action = sig(np.array(action))
         self.env.step(action)
+        self.env._step_count = 0  # clamp time to avoid env resets
         return self.state
 
     def render(self):
         """ render image of current state """
         return self.env.physics.render(camera_id=0)
-
-
-class Test:
-    def __init__(self):
-        self._x = 0
