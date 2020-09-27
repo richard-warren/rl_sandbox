@@ -47,8 +47,58 @@ class Env:
         J = self.finite_differences(state_derivs, xu)
         return dict(f_x=J[:,:4], f_u=J[:,4:])
 
+    def cost(self, state, action, compute_derivs=True):
+        """ compute cost and cost derivatives """
+        control_wgt = 1e-2
+        state_wgt = 1
+        self.state = np.array(state, dtype='float64')
+        cost =  0.5 * pow(self.target_distance, 2)        * state_wgt
+        cost += sum(np.array(action, dtype='float64')**2) * control_wgt
+
+        if compute_derivs:
+            xu_cost = lambda xu: self.cost(xu[:4], xu[4:], compute_derivs=False)[0]
+
+            # first order
+            xu = np.concatenate((np.array(state, dtype='float64'),
+                                 np.array(action, dtype='float64')))
+            J = self.finite_differences(xu_cost, xu)
+            l_x = J[:4]
+            l_u = J[4:]
+
+            # second order
+            xu_derivs = lambda xu: self.finite_differences(xu_cost, xu)
+            J = self.finite_differences(xu_derivs, xu)
+            l_xx = J[:4,:4]
+            l_uu = J[4:,4:]
+            l_ux = J[4:,:4]
+
+            derivs = dict(l_x=l_x, l_u=l_u, l_ux=l_ux, l_xx=l_xx, l_uu=l_uu)
+        else:
+            derivs = None
+
+        return cost, derivs
+
+    def cost_final(self, state, compute_derivs=True):
+        """ compute final cost and final cost derivaties """
+        self.state = np.array(state, dtype='float64')
+        cost =  0.5 * pow(self.target_distance, 2)
+
+        if compute_derivs:
+            fcn_x = lambda v: self.cost_final(v, compute_derivs=False)[0]
+            l_x = self.finite_differences(fcn_x, state)
+            fcn_xx = lambda v: self.finite_differences(fcn_x, v)
+            l_xx = self.finite_differences(fcn_xx, state)
+            derivs = {
+                'l_x':  l_x,
+                'l_xx': l_xx,
+            }
+        else:
+            derivs = None
+
+        return cost, derivs
+
     @staticmethod
-    def finite_differences(fcn, x, eps=1e-2):  # if eps too small derivs may be zero
+    def finite_differences(fcn, x, eps=1e-4):  # if eps too small derivs may be zero
         """ estimate gradient of fcn wrt x via finite differences """
         # todo: vectorize (assuming fcn is vectorized)
         x = np.array(x, dtype='float64')
@@ -90,6 +140,10 @@ class PointMass(Env):
                  color='black', linewidth=4)  # arena walls
         plt.close()
 
+    @property
+    def target_distance(self):
+        return np.linalg.norm(self.state[:2] - self.target)
+
     def reset(self, reset_target=True):
         """ reset point to initial state and target to random position """
         self.state = np.array([0,0,0,0], dtype='float64')  # (pos_x, pos_y, vel_x, vel_y)
@@ -103,30 +157,6 @@ class PointMass(Env):
         self.state[2:] += np.array(action, dtype='float64') * self.dt
         self.state[:2] += self.state[2:] * self.dt
         return self.state.copy()
-
-    def cost(self, state, action):
-        """ compute cost and cost derivaties """
-        cost = 0.5 * ((state[:2] - self.target)**2).sum()
-        derivs = {
-            'l_x':  np.concatenate(((state[:2]-self.target), [0,0])),
-            'l_u':  np.zeros(2),
-            'l_ux': np.zeros((2,4)),
-            'l_xx': np.diag((1,1,0,0)),
-            'l_uu': np.zeros((2,2))
-        }
-        return cost, derivs
-
-    def cost_final(self, state):
-        """ compute final cost and final cost derivaties """
-        cost = 0.5 * ((state[:2] - self.target)**2).sum()
-        derivs = {
-            'l_x':  np.concatenate(((state[:2]-self.target), [0,0])),
-            'l_u':  np.zeros(2),
-            'l_ux': np.zeros((2,4)),
-            'l_xx': np.diag((1,1,0,0)),
-            'l_uu': np.zeros((2,2))
-        }
-        return cost, derivs
 
     def render(self, dpi=200):
         """ render image of current state """
@@ -149,6 +179,33 @@ class PointMass(Env):
 
         return img
 
+    # def cost(self, state, action):
+    #     """ compute cost and cost derivaties """
+    #     print('analytical')
+    #     state = np.array(state, dtype='float64')
+    #     cost = 0.5 * ((state[:2] - self.target)**2).sum()
+    #     derivs = {
+    #         'l_x':  np.concatenate(((state[:2]-self.target), [0,0])),
+    #         'l_u':  np.zeros(2),
+    #         'l_ux': np.zeros((2,4)),
+    #         'l_xx': np.diag((1,1,0,0)),
+    #         'l_uu': np.zeros((2,2))
+    #     }
+    #     return cost, derivs
+    #
+    # def cost_final(self, state):
+    #     """ compute final cost and final cost derivaties """
+    #     state = np.array(state, dtype='float64')
+    #     cost = 0.5 * ((state[:2] - self.target)**2).sum()
+    #     derivs = {
+    #         'l_x':  np.concatenate(((state[:2]-self.target), [0,0])),
+    #         'l_u':  np.zeros(2),
+    #         'l_ux': np.zeros((2,4)),
+    #         'l_xx': np.diag((1,1,0,0)),
+    #         'l_uu': np.zeros((2,2))
+    #     }
+    #     return cost, derivs
+
 
 class Arm(Env):
     """ two link arm. wrapper from dm_control `reacher` """
@@ -157,7 +214,7 @@ class Arm(Env):
         self.initial_state = initial_state
         self.env = suite.load('reacher', 'easy')
         self.reset()
-        self.max_steps = 50  #int(self.env._step_limit)
+        self.max_steps = 200  #int(self.env._step_limit)
         self.dt = self.env.physics.timestep()
 
     @property
@@ -172,21 +229,30 @@ class Arm(Env):
             self.env.physics.data.qpos[:] = state[:2].copy()
             self.env.physics.data.qvel[:] = state[2:].copy()
 
+    @property
+    def target(self):
+        target = (self.env.physics.named.model.geom_pos['target', 'x'],
+                  self.env.physics.named.model.geom_pos['target', 'y'])
+        return target
+
+    @target.setter
+    def target(self, target):
+        with self.env.physics.reset_context():
+            self.env.physics.named.model.geom_pos['target', 'x'] = target[0]
+            self.env.physics.named.model.geom_pos['target', 'y'] = target[1]
+
+    @property
+    def target_distance(self):
+        return self.env.physics.finger_to_target_dist()
+
     def reset(self, reset_target=True):
         """ reset state (target position randomized but arm set to default state) """
 
+        original_target = self.target
         self.env.reset()
-
-        if reset_target:
-            self.target_pos = (self.env.physics.named.model.geom_pos['target', 'x'],
-                               self.env.physics.named.model.geom_pos['target', 'y'])
-        else:
-            with self.env.physics.reset_context():
-                self.env.physics.named.model.geom_pos['target', 'x'] = self.target_pos[0]
-                self.env.physics.named.model.geom_pos['target', 'y'] = self.target_pos[1]
-
-        # reset arm state
-        self.state = self.initial_state  # pointing straight up with no velocity
+        if not reset_target:
+            self.target = original_target
+        self.state = self.initial_state
 
         return self.state.copy()
 
@@ -194,56 +260,6 @@ class Arm(Env):
         """ advance state via physics engine """
         self.env.step(action)
         return self.state
-
-    def cost(self, state, action, compute_derivs=True):
-        """ compute cost and cost derivaties """
-        cost_wgt = 0
-        self.state = state
-        cost =  0.5 * pow(self.env.physics.finger_to_target_dist(), 2)
-        cost += sum(np.array(action, dtype='float64')**2) * cost_wgt  # if using control costs
-
-        if compute_derivs:
-            xu_cost = lambda xu: self.cost(xu[:4], xu[4:], compute_derivs=False)[0]
-
-            # first order
-            xu = np.concatenate((np.array(state, dtype='float64'),
-                                 np.array(action, dtype='float64')))
-            J = self.finite_differences(xu_cost, xu)
-            l_x = J[:4]
-            l_u = J[4:]
-
-            # second order
-            xu_derivs = lambda xu: self.finite_differences(xu_cost, xu)
-            J = self.finite_differences(xu_derivs, xu)
-            l_xx = J[:4,:4]
-            l_uu = J[4:,4:]
-            l_ux = J[4:,:4]
-
-            derivs = dict(l_x=l_x, l_u=l_u, l_ux=l_ux, l_xx=l_xx, l_uu=l_uu)
-            # derivs = dict(l_x=np.zeros(4), l_u=l_u, l_ux=np.zeros((2,4)), l_xx=np.zeros((4,4)), l_uu=l_uu)  # no state costs
-        else:
-            derivs = None
-
-        return cost, derivs
-
-    def cost_final(self, state, compute_derivs=True):
-        """ compute final cost and final cost derivaties """
-        self.state = state
-        cost = 0.5 * pow(self.env.physics.finger_to_target_dist(), 2)
-
-        if compute_derivs:
-            fcn_x = lambda v: self.cost_final(v, compute_derivs=False)[0]
-            l_x = self.finite_differences(fcn_x, state)
-            fcn_xx = lambda v: self.finite_differences(fcn_x, v)
-            l_xx = self.finite_differences(fcn_xx, state)
-            derivs = {
-                'l_x':  l_x,
-                'l_xx': l_xx,
-            }
-        else:
-            derivs = None
-
-        return cost, derivs
 
     def render(self):
         """ render image of current state """
