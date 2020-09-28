@@ -49,8 +49,10 @@ class Env:
 
     def cost(self, state, action, compute_derivs=True):
         """ compute cost and cost derivatives """
-        control_wgt = 1e-3
+        control_wgt = 1e-4
         state_wgt = 1
+
+        original_state = self.state.copy()
         self.state = np.array(state, dtype='float64')
         action = np.array(action, dtype='float64')
         cost =  0.5 * pow(self.target_distance, 2)        * state_wgt
@@ -77,12 +79,15 @@ class Env:
         else:
             derivs = None
 
+        self.state = original_state.copy()  # put state back where it was
         return cost, derivs
 
     def cost_final(self, state, compute_derivs=True):
         """ compute final cost and final cost derivaties """
         self.state = np.array(state, dtype='float64')
         cost =  0.5 * pow(self.target_distance, 2)
+
+        original_state = self.state.copy()
 
         if compute_derivs:
             fcn_x = lambda v: self.cost_final(v, compute_derivs=False)[0]
@@ -96,10 +101,11 @@ class Env:
         else:
             derivs = None
 
+        self.state = original_state.copy()  # put state back where it was
         return cost, derivs
 
     @staticmethod
-    def finite_differences(fcn, x, eps=1e-2):  # if eps too small derivs may be zero
+    def finite_differences(fcn, x, eps=1e-4):  # if eps too small derivs may be zero
         """ estimate gradient of fcn wrt x v fia finite differences """
         # todo: vectorize (assuming fcn is vectorized)
         x = np.array(x, dtype='float64')
@@ -120,12 +126,13 @@ class Env:
 class PointMass(Env):
     """ point mass in plane with target. cost is distant to target """
 
-    def __init__(self, dt=.05, arena_size=(1,1), mass=1, max_time=10):
+    def __init__(self, dt=.05, arena_size=(1,1), mass=1, max_time=10, initial_state=[0,0,0,0]):
         self.mass = mass
         self.dt = dt
         self.xlim = (-arena_size[0]/2, arena_size[0]/2)
         self.ylim = (-arena_size[1]/2, arena_size[1]/2)
         self.max_steps = int(max_time // dt)
+        self.initial_state = initial_state
         self.reset()  # set initial state and target positions
 
         # graphic objects
@@ -147,7 +154,7 @@ class PointMass(Env):
 
     def reset(self, reset_target=True):
         """ reset point to initial state and target to random position """
-        self.state = np.array([0,0,0,0], dtype='float64')  # (pos_x, pos_y, vel_x, vel_y)
+        self.state = np.array(self.initial_state, dtype='float64')  # (pos_x, pos_y, vel_x, vel_y)
         if reset_target:
             self.target = np.random.uniform((self.xlim[0], self.ylim[0]),
                                             (self.xlim[1], self.ylim[1]))
@@ -213,10 +220,10 @@ class Arm(Env):
 
     def __init__(self, initial_state=[np.pi/2,0,0,0]):
         self.initial_state = initial_state
-        # self.env = suite.load('reacher', 'easy')
-        self.env = suite.load('point_mass', 'easy')
+        self.env = suite.load('reacher', 'easy')
+        # self.env = suite.load('point_mass', 'easy')
         self.reset()
-        self.max_steps = 200  #int(self.env._step_limit)
+        self.max_steps = 50  #int(self.env._step_limit)
         self.dt = self.env.physics.timestep()
 
     @property
@@ -245,8 +252,8 @@ class Arm(Env):
 
     @property
     def target_distance(self):
-        # return self.env.physics.finger_to_target_dist()
-        return self.env.physics.mass_to_target_dist()
+        return self.env.physics.finger_to_target_dist()
+        # return self.env.physics.mass_to_target_dist()
 
     def reset(self, reset_target=True):
         """ reset state (target position randomized but arm set to default state) """
