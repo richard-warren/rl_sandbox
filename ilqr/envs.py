@@ -11,20 +11,16 @@ import io
 
 class Env:
 
-    def __init__(self):
-        pass
-
     def simulate(self, state, action):
         """ get subsequent state from (state, action) """
-        original_state = self.state.copy()
-        self.state = state.copy()
+        original_state = self.state
+        self.state = state
         state_next = self.step(action)
-        self.state = original_state.copy()  # put state back where it was
+        self.state = original_state  # put state back where it was
         return state_next
 
     def rollout(self, actions):
         """ compute states, costs, and cost derivatives for trajectory controlled by `actions` """
-        # todo: check that doesn't exceed max_steps
         states, costs, costs_derivs = [], [], []
         states.append(self.reset(reset_target=False))
 
@@ -42,7 +38,7 @@ class Env:
 
     def state_derivs(self, state, action):
         """ compute derivates of state wrt states and controls (f_x, f_u) """
-        xu = np.concatenate((np.array(state, dtype='float64'), np.array(action, dtype='float64')))
+        xu = np.concatenate((np.array(state), np.array(action)))
         state_derivs = lambda xu: self.simulate(xu[:4], xu[4:])
         J = self.finite_differences(state_derivs, xu)
         return dict(f_x=J[:,:4], f_u=J[:,4:])
@@ -51,10 +47,11 @@ class Env:
         """ compute cost and cost derivatives """
         control_wgt = 1e-4
         state_wgt = 1
+        state = np.array(state)
+        action = np.array(action)
+        original_state = self.state
+        self.state = state
 
-        original_state = self.state.copy()
-        self.state = np.array(state, dtype='float64')
-        action = np.array(action, dtype='float64')
         cost =  0.5 * pow(self.target_distance, 2)        * state_wgt
         cost += sum(np.array(action, dtype='float64')**2) * control_wgt
 
@@ -62,8 +59,8 @@ class Env:
             xu_cost = lambda xu: self.cost(xu[:4], xu[4:], compute_derivs=False)[0]
 
             # first order
-            xu = np.concatenate((np.array(state, dtype='float64'),
-                                 np.array(action, dtype='float64')))
+            xu = np.concatenate((np.array(state),
+                                 np.array(action)))
             J = self.finite_differences(xu_cost, xu)
             l_x = J[:4]
             l_u = J[4:]
@@ -79,12 +76,12 @@ class Env:
         else:
             derivs = None
 
-        self.state = original_state.copy()  # put state back where it was
+        self.state = original_state  # put state back where it was
         return cost, derivs
 
     def cost_final(self, state, compute_derivs=True):
         """ compute final cost and final cost derivaties """
-        self.state = np.array(state, dtype='float64')
+        self.state = np.array(state)
         cost =  0.5 * pow(self.target_distance, 2)
 
         original_state = self.state.copy()
@@ -108,7 +105,6 @@ class Env:
     def finite_differences(fcn, x, eps=1e-4):  # if eps too small derivs may be zero
         """ estimate gradient of fcn wrt x v fia finite differences """
         # todo: vectorize (assuming fcn is vectorized)
-        x = np.array(x, dtype='float64')
         diffs = []
         for i in range(len(x)):
             x_inc = x.copy()
@@ -116,7 +112,7 @@ class Env:
             x_inc[i] += eps
             x_dec[i] -= eps
             diffs.append((fcn(x_inc) - fcn(x_dec)) / (eps*2))
-        return np.array(diffs, dtype='float64').T
+        return np.array(diffs).T
 
     def show(self):
         plt.imshow(self.render())
@@ -187,40 +183,13 @@ class PointMass(Env):
 
         return img
 
-    # def cost(self, state, action):
-    #     """ compute cost and cost derivaties """
-    #     print('analytical')
-    #     state = np.array(state, dtype='float64')
-    #     cost = 0.5 * ((state[:2] - self.target)**2).sum()
-    #     derivs = {
-    #         'l_x':  np.concatenate(((state[:2]-self.target), [0,0])),
-    #         'l_u':  np.zeros(2),
-    #         'l_ux': np.zeros((2,4)),
-    #         'l_xx': np.diag((1,1,0,0)),
-    #         'l_uu': np.zeros((2,2))
-    #     }
-    #     return cost, derivs
-    #
-    # def cost_final(self, state):
-    #     """ compute final cost and final cost derivaties """
-    #     state = np.array(state, dtype='float64')
-    #     cost = 0.5 * ((state[:2] - self.target)**2).sum()
-    #     derivs = {
-    #         'l_x':  np.concatenate(((state[:2]-self.target), [0,0])),
-    #         'l_u':  np.zeros(2),
-    #         'l_ux': np.zeros((2,4)),
-    #         'l_xx': np.diag((1,1,0,0)),
-    #         'l_uu': np.zeros((2,2))
-    #     }
-    #     return cost, derivs
-
 
 class Arm(Env):
     """ two link arm. wrapper from dm_control `reacher` """
 
     def __init__(self, initial_state=[np.pi/2,0,0,0]):
         self.initial_state = initial_state
-        self.env = suite.load('reacher', 'easy')
+        self.env = suite.load('reacher', 'hard')
         # self.env = suite.load('point_mass', 'easy')
         self.reset()
         self.max_steps = 50  #int(self.env._step_limit)
