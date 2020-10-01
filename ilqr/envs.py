@@ -42,9 +42,10 @@ class Env:
     def state_derivs(self, state, action):
         """ compute derivates of state wrt states and controls (f_x, f_u) """
         xu = np.concatenate((state, action))
-        state_derivs = lambda xu: self.simulate(xu[:4], xu[4:])
+        ix = len(state)
+        state_derivs = lambda xu: self.simulate(xu[:ix], xu[ix:])
         J = self.finite_differences(state_derivs, xu)
-        return dict(f_x=J[:,:4], f_u=J[:,4:])
+        return dict(f_x=J[:,:ix], f_u=J[:,ix:])
 
     def cost_derivs(self, state, action):
         """ compute cost and cost derivatives """
@@ -74,16 +75,15 @@ class Env:
         original_state = self.state
         self.state = state
 
-        x_cost = lambda x: self.cost_final(x)
-        l_x = self.finite_differences(x_cost, state)
-        x_derivs = lambda v: self.finite_differences(self.cost_final, v)
+        l_x = self.finite_differences(self.cost_final, state)
+        x_derivs = lambda x: self.finite_differences(self.cost_final, x)
         l_xx = self.finite_differences(x_derivs, state)
 
         self.state = original_state  # put state back where it was
         return dict(l_x=l_x, l_xx=l_xx)
 
     @staticmethod
-    def finite_differences(fcn, x, eps=1e-4):  # if eps too small derivs may be zero
+    def finite_differences(fcn, x, eps=1e-1):  # if eps too small derivs may be zero
         """ estimate gradient of fcn wrt x v fia finite differences """
         # todo: vectorize (assuming fcn is vectorized)
         diffs = []
@@ -103,7 +103,7 @@ class Env:
 class PointMass(Env):
     """ point mass in plane with target. cost is distant to target """
 
-    def __init__(self, dt=.05, arena_size=(1,1), mass=1, max_time=10, initial_state=[0,0,0,0],
+    def __init__(self, dt=.05, arena_size=(1,1), mass=1, max_time=5, initial_state=[0,0,0,0],
                  control_wgt=1e-4, state_wgt=1):
         self.mass = mass
         self.dt = dt
@@ -113,6 +113,7 @@ class PointMass(Env):
         self.initial_state = initial_state
         self.control_wgt = control_wgt
         self.state_wgt = state_wgt
+        self.action_dim = 2
         self.reset()  # set initial state and target positions
 
         # graphic objects
@@ -147,6 +148,8 @@ class PointMass(Env):
 
     def step(self, action):
         """ advance state via F=ma """
+        sig = lambda x: (1 / (1 + np.exp(-4*x))) * 2 - 1  # squash between 0 and 1
+        action = sig(action)
         self.state[2:] += action * self.dt
         self.state[:2] += self.state[2:] * self.dt
         return self.state.copy()
@@ -176,13 +179,16 @@ class PointMass(Env):
 class DmControl(Env):
     """ parent class for `dm_control` wrappers """
 
-    def __init__(self, domain, task, initial_state, max_steps=None, control_wgt=1e-4, state_wgt=1):  # self, domain, task, initial_state,
-        self.initial_state = initial_state
+    def __init__(self, domain, task, initial_state, n_sub_steps=None, max_steps=None, control_wgt=1e-4, state_wgt=1):  # self, domain, task, initial_state,
         self.env = suite.load(domain, task)
+        self.initial_state = initial_state
         self.control_wgt = control_wgt
         self.state_wgt = state_wgt
+        if n_sub_steps is not None:
+            self.env._n_sub_steps = n_sub_steps
         self.max_steps = max_steps if max_steps is not None else int(self.env._step_limit)
-        self.dt = self.env.physics.timestep()
+        self.dt = self.env.control_timestep()
+        self.action_dim = self.env.action_spec().shape[0]
         self.reset()
 
     @property
@@ -193,9 +199,10 @@ class DmControl(Env):
     @state.setter
     def state(self, state):
         """ set state without changing target position """
+        iv = len(self.env.physics.data.qpos[:])  # index at which velocity measurements begin
         with self.env.physics.reset_context():
-            self.env.physics.data.qpos[:] = state[:2].copy()
-            self.env.physics.data.qvel[:] = state[2:].copy()
+            self.env.physics.data.qpos[:] = state[:iv].copy()
+            self.env.physics.data.qvel[:] = state[iv:].copy()
 
     def step(self, action):
         """ advance state via physics engine """
@@ -215,7 +222,8 @@ class Arm(DmControl):
 
     def __init__(self, **kwargs):
         """ see DmControl constructor for keyword arguments """
-        super().__init__('reacher', 'easy', [0,0,0,0], **kwargs)
+        initial_state = [0,np.pi/2,0,0]
+        super().__init__('reacher', 'hard', initial_state, max_steps=40, n_sub_steps=2, **kwargs)
 
     @property
     def target(self):
@@ -259,7 +267,8 @@ class PointMassDm(DmControl):
 
     def __init__(self, **kwargs):
         """ see DmControl constructor for keyword arguments """
-        super().__init__('point_mass', 'easy', [0,0,0,0], **kwargs)
+        initial_state = [0,0,0,0]
+        super().__init__('point_mass', 'easy', initial_state, max_steps=50, n_sub_steps=2, **kwargs)
 
     @property
     def target(self):
@@ -274,6 +283,7 @@ class PointMassDm(DmControl):
             self.env.physics.named.model.geom_pos['target', 'y'] = target[1]
 
     def cost(self, state, action):
+        # todo: no need to change state of agent here... compute based on target pos and state
         original_state = self.state
         self.state = state
         cost  = self.env.physics.mass_to_target_dist()**2 * self.state_wgt
@@ -282,6 +292,7 @@ class PointMassDm(DmControl):
         return cost
 
     def cost_final(self, state):
+        # todo: no need to change state of agent here... compute based on target pos and state
         original_state = self.state
         self.state = state
         cost  = self.env.physics.mass_to_target_dist()**2 * self.state_wgt
@@ -299,6 +310,36 @@ class PointMassDm(DmControl):
         self.state = self.initial_state
         return self.state
 
+
+class Hopper(DmControl):
+
+    def __init__(self, **kwargs):
+        """ see DmControl constructor for keyword arguments """
+        initial_state = np.array([0,-.06,0,0,0,0,0,0,0,0,0,0,0,0], dtype='float64')
+        super().__init__('hopper', 'hop', initial_state, max_steps=25, n_sub_steps=8, **kwargs)
+
+    def cost(self, state, action):
+        original_state = self.state
+        self.state = state
+
+        cost = (2-self.env.physics.height())**2 * self.state_wgt
+        cost += action.sum()**2 * self.control_wgt
+        # cost = 0  # to bypass trajectory costs...
+        self.state = original_state  # return to original state
+        return cost
+
+    def cost_final(self, state):
+        original_state = self.state
+        self.state = state
+        cost = (2-self.env.physics.height())**2 * self.state_wgt
+        self.state = original_state  # return to original state
+        return cost
+
+    def reset(self, reset_target=True):
+        """ reset state (target position randomized but arm set to default state) """
+        self.env.reset()
+        self.state = self.initial_state
+        return self.state
 
 """
 
