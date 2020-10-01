@@ -25,12 +25,14 @@ class Env:
         states.append(self.reset(reset_target=False))
 
         for action in actions:
-            cost, cost_derivs = self.cost(states[-1], action)
+            cost = self.cost(states[-1], action)
+            cost_derivs = self.cost_derivs(states[-1], action)
             costs.append(cost)
             costs_derivs.append(cost_derivs)
             states.append(self.step(action))
 
-        cost, cost_derivs = self.cost_final(states[-1])
+        cost = self.cost_final(states[-1])
+        cost_derivs = self.cost_final_derivs(states[-1])
         costs.append(cost)
         costs_derivs.append(cost_derivs)
 
@@ -43,63 +45,44 @@ class Env:
         J = self.finite_differences(state_derivs, xu)
         return dict(f_x=J[:,:4], f_u=J[:,4:])
 
-    def cost(self, state, action, compute_derivs=True):
+    def cost_derivs(self, state, action):
         """ compute cost and cost derivatives """
-        control_wgt = 1e-4
-        state_wgt = 1
-        state = np.array(state)
-        action = np.array(action)
+        state = np.array(state, dtype='float64')
+        action = np.array(action, dtype='float64')
         original_state = self.state
         self.state = state
+        ix = len(state)
 
-        cost =  0.5 * pow(self.target_distance, 2)        * state_wgt
-        cost += sum(np.array(action, dtype='float64')**2) * control_wgt
+        # first order
+        xu = np.concatenate((np.array(state), np.array(action)))
+        xu_cost = lambda xu: self.cost(xu[:ix], xu[ix:])
+        J = self.finite_differences(xu_cost, xu)
+        l_x = J[:ix]
+        l_u = J[ix:]
 
-        if compute_derivs:
-            xu_cost = lambda xu: self.cost(xu[:4], xu[4:], compute_derivs=False)[0]
-
-            # first order
-            xu = np.concatenate((np.array(state),
-                                 np.array(action)))
-            J = self.finite_differences(xu_cost, xu)
-            l_x = J[:4]
-            l_u = J[4:]
-
-            # second order
-            xu_derivs = lambda xu: self.finite_differences(xu_cost, xu)
-            J = self.finite_differences(xu_derivs, xu)
-            l_xx = J[:4,:4]
-            l_uu = J[4:,4:]
-            l_ux = J[4:,:4]
-
-            derivs = dict(l_x=l_x, l_u=l_u, l_ux=l_ux, l_xx=l_xx, l_uu=l_uu)
-        else:
-            derivs = None
+        # second order
+        xu_derivs = lambda xu: self.finite_differences(xu_cost, xu)
+        J = self.finite_differences(xu_derivs, xu)
+        l_xx = J[:ix,:ix]
+        l_uu = J[ix:,ix:]
+        l_ux = J[ix:,:ix]
 
         self.state = original_state  # put state back where it was
-        return cost, derivs
+        return dict(l_x=l_x, l_u=l_u, l_ux=l_ux, l_xx=l_xx, l_uu=l_uu)
 
-    def cost_final(self, state, compute_derivs=True):
+    def cost_final_derivs(self, state):
         """ compute final cost and final cost derivaties """
+        state = np.array(state)
+        original_state = self.state
         self.state = np.array(state)
-        cost =  0.5 * pow(self.target_distance, 2)
 
-        original_state = self.state.copy()
+        x_cost = lambda x: self.cost_final(x)
+        l_x = self.finite_differences(x_cost, state)
+        x_derivs = lambda v: self.finite_differences(self.cost_final, v)
+        l_xx = self.finite_differences(x_derivs, state)
 
-        if compute_derivs:
-            fcn_x = lambda v: self.cost_final(v, compute_derivs=False)[0]
-            l_x = self.finite_differences(fcn_x, state)
-            fcn_xx = lambda v: self.finite_differences(fcn_x, v)
-            l_xx = self.finite_differences(fcn_xx, state)
-            derivs = {
-                'l_x':  l_x,
-                'l_xx': l_xx,
-            }
-        else:
-            derivs = None
-
-        self.state = original_state.copy()  # put state back where it was
-        return cost, derivs
+        self.state = original_state  # put state back where it was
+        return dict(l_x=l_x, l_xx=l_xx)
 
     @staticmethod
     def finite_differences(fcn, x, eps=1e-4):  # if eps too small derivs may be zero
@@ -122,13 +105,16 @@ class Env:
 class PointMass(Env):
     """ point mass in plane with target. cost is distant to target """
 
-    def __init__(self, dt=.05, arena_size=(1,1), mass=1, max_time=10, initial_state=[0,0,0,0]):
+    def __init__(self, dt=.05, arena_size=(1,1), mass=1, max_time=10, initial_state=[0,0,0,0],
+                 control_wgt=1e-4, state_wgt=1):
         self.mass = mass
         self.dt = dt
         self.xlim = (-arena_size[0]/2, arena_size[0]/2)
         self.ylim = (-arena_size[1]/2, arena_size[1]/2)
         self.max_steps = int(max_time // dt)
         self.initial_state = initial_state
+        self.control_wgt = control_wgt
+        self.state_wgt = state_wgt
         self.reset()  # set initial state and target positions
 
         # graphic objects
@@ -144,9 +130,14 @@ class PointMass(Env):
                  color='black', linewidth=4)  # arena walls
         plt.close()
 
-    @property
-    def target_distance(self):
-        return np.linalg.norm(self.state[:2] - self.target)
+    def cost(self, state, action):
+        cost  = np.linalg.norm(state[:2] - self.target)**2 * self.state_wgt
+        cost += sum(np.array(action)**2)                   * self.control_wgt
+        return cost
+
+    def cost_final(self, state):
+        cost  = np.linalg.norm(state[:2] - self.target)**2 * self.state_wgt
+        return cost
 
     def reset(self, reset_target=True):
         """ reset point to initial state and target to random position """
@@ -158,7 +149,7 @@ class PointMass(Env):
 
     def step(self, action):
         """ advance state via F=ma """
-        self.state[2:] += np.array(action, dtype='float64') * self.dt
+        self.state[2:] += np.array(action) * self.dt
         self.state[:2] += self.state[2:] * self.dt
         return self.state.copy()
 
@@ -187,13 +178,16 @@ class PointMass(Env):
 class Arm(Env):
     """ two link arm. wrapper from dm_control `reacher` """
 
-    def __init__(self, initial_state=[np.pi/2,0,0,0]):
+    def __init__(self, initial_state=[np.pi/2,0,0,0], max_steps=None,
+                 control_wgt=1e-4, state_wgt=1):
         self.initial_state = initial_state
         self.env = suite.load('reacher', 'hard')
         # self.env = suite.load('point_mass', 'easy')
-        self.reset()
-        self.max_steps = 50  #int(self.env._step_limit)
+        self.control_wgt = control_wgt
+        self.state_wgt = state_wgt
+        self.max_steps = max_steps if max_steps is not None else int(self.env._step_limit)
         self.dt = self.env.physics.timestep()
+        self.reset()
 
     @property
     def state(self):
@@ -219,10 +213,20 @@ class Arm(Env):
             self.env.physics.named.model.geom_pos['target', 'x'] = target[0]
             self.env.physics.named.model.geom_pos['target', 'y'] = target[1]
 
-    @property
-    def target_distance(self):
-        return self.env.physics.finger_to_target_dist()
-        # return self.env.physics.mass_to_target_dist()
+    def cost(self, state, action):
+        original_state = self.state
+        self.state = state
+        cost  = self.env.physics.finger_to_target_dist()**2 * self.state_wgt
+        cost += sum(np.array(action)**2)                    * self.control_wgt
+        self.state = original_state  # return to original state
+        return cost
+
+    def cost_final(self, state):
+        original_state = self.state
+        self.state = state
+        cost  = self.env.physics.finger_to_target_dist()**2 * self.state_wgt
+        self.state = original_state  # return to original state
+        return cost
 
     def reset(self, reset_target=True):
         """ reset state (target position randomized but arm set to default state) """
