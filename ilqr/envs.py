@@ -83,7 +83,7 @@ class Env:
         return dict(l_x=l_x, l_xx=l_xx)
 
     @staticmethod
-    def finite_differences(fcn, x, eps=1e-1):  # if eps too small derivs may be zero
+    def finite_differences(fcn, x, eps=1e-1):  # eps > 1e-1 failed for hopper standing...
         """ estimate gradient of fcn wrt x v fia finite differences """
         # todo: vectorize (assuming fcn is vectorized)
         diffs = []
@@ -103,8 +103,8 @@ class Env:
 class PointMass(Env):
     """ point mass in plane with target. cost is distant to target """
 
-    def __init__(self, dt=.05, arena_size=(1,1), mass=1, max_time=5, initial_state=[0,0,0,0],
-                 control_wgt=1e-4, state_wgt=1):
+    def __init__(self, dt=.05, arena_size=(1,1), mass=1, max_time=10, initial_state=[0,0,0,0],
+                 field_freq=6, field_wgt=1e-1, control_wgt=1e-4, state_wgt=1):
         self.mass = mass
         self.dt = dt
         self.xlim = (-arena_size[0]/2, arena_size[0]/2)
@@ -114,16 +114,25 @@ class PointMass(Env):
         self.control_wgt = control_wgt
         self.state_wgt = state_wgt
         self.action_dim = 2
+        self.field_freq = field_freq
+        self.field_wgt = field_wgt
+        self.field_fcn = lambda x, y: (np.cos(x*2*self.field_freq*np.pi*0) +  # only vary with y for now...
+                                       np.cos(y*2*self.field_freq*np.pi) + 2) * self.field_wgt
+
         self.reset()  # set initial state and target positions
 
         # graphic objects
-        self.fig = plt.figure(figsize=(2.5,2.5))
-        self.ax = plt.axes(xlim=(-arena_size[0]*.6, arena_size[0]*.6),
-                           ylim=(-arena_size[1]*.6, arena_size[1]*.6))
-        plt.axis('off')
-        self.plt_circle = plt.plot(self.state[0], self.state[1], marker='o', ms=10)[0]
-        self.plt_target = plt.plot(self.target[0],   self.target[1],   marker='o', ms=10, alpha=.5)[0]
         sz = arena_size
+        self.fig = plt.figure(figsize=(2.5*(sz[0]/sz[1]), 2.5))
+        self.ax = plt.axes(xlim=(-sz[0]*.6, sz[0]*.6), ylim=(-sz[1]*.6, sz[1]*.6))
+        plt.axis('off')
+
+        grid = np.meshgrid(np.linspace(-sz[0]/2, sz[0]/2, 100), np.linspace(-sz[1]/2, sz[1]/2, 100))
+        field = np.array([self.field_fcn(x,y) for x, y in zip(*grid)])
+        if field_wgt>0:
+            plt.imshow(field, cmap='gray', extent=(-sz[0]/2, sz[0]/2, -sz[1]/2, sz[1]/2))
+        self.plt_circle = plt.plot(self.state[0], self.state[1], marker='o', ms=10)[0]
+        self.plt_target = plt.plot(self.target[0], self.target[1], marker='o', ms=10, alpha=.5)[0]
         plt.plot([-sz[0]/2, sz[0]/2, sz[0]/2, -sz[0]/2, -sz[0]/2],
                  [sz[1]/2, sz[1]/2, -sz[1]/2, -sz[1]/2, sz[1]/2],
                  color='black', linewidth=4)  # arena walls
@@ -132,10 +141,12 @@ class PointMass(Env):
     def cost(self, state, action):
         cost  = np.linalg.norm(state[:2] - self.target)**2 * self.state_wgt
         cost += action.sum()**2 * self.control_wgt
+        cost += self.field_fcn(*state[:2]) * self.field_wgt
         return cost
 
     def cost_final(self, state):
         cost  = np.linalg.norm(state[:2] - self.target)**2 * self.state_wgt
+        cost += self.field_fcn(*state[:2]) * self.field_wgt
         return cost
 
     def reset(self, reset_target=True):
@@ -156,7 +167,6 @@ class PointMass(Env):
 
     def render(self, dpi=200):
         """ render image of current state """
-        pos, vel = self.state[:2], self.state[2:]
 
         # update graphics
         self.plt_circle.set_xdata(self.state[0])
@@ -165,8 +175,8 @@ class PointMass(Env):
         self.plt_target.set_ydata(self.target[1])
 
         # render image
-        pix_dimensions = (int(self.fig.get_size_inches()[0]*dpi),
-                          int(self.fig.get_size_inches()[1]*dpi), -1)
+        pix_dimensions = (int(self.fig.get_size_inches()[1]*dpi),
+                          int(self.fig.get_size_inches()[0]*dpi), -1)
         io_buf = io.BytesIO()
         self.fig.savefig(io_buf, format='raw', dpi=dpi)
         io_buf.seek(0)
@@ -222,7 +232,7 @@ class Arm(DmControl):
 
     def __init__(self, **kwargs):
         """ see DmControl constructor for keyword arguments """
-        initial_state = [0,np.pi/2,0,0]
+        initial_state = [np.pi/2,0,0,0]
         super().__init__('reacher', 'hard', initial_state, max_steps=40, n_sub_steps=2, **kwargs)
 
     @property
@@ -315,23 +325,24 @@ class Hopper(DmControl):
 
     def __init__(self, **kwargs):
         """ see DmControl constructor for keyword arguments """
-        initial_state = np.array([0,-.06,0,0,0,0,0,0,0,0,0,0,0,0], dtype='float64')
+        initial_state = np.array([0,-.06,0,0,0,0,0,0,0,0,0,0,0,0], dtype='float64')  # feet moved down close to the floor to minimize the 'drop'
         super().__init__('hopper', 'hop', initial_state, max_steps=25, n_sub_steps=8, **kwargs)
 
     def cost(self, state, action):
         original_state = self.state
         self.state = state
 
-        cost = (2-self.env.physics.height())**2 * self.state_wgt
+        cost = (2-self.env.physics.height())**2 * self.state_wgt  # squared distance from vertical position of 2
+        # cost = (2-self.state[0])**2 * self.state_wgt  # squared distance from horizontal position of 2
         cost += action.sum()**2 * self.control_wgt
-        # cost = 0  # to bypass trajectory costs...
         self.state = original_state  # return to original state
         return cost
 
     def cost_final(self, state):
         original_state = self.state
         self.state = state
-        cost = (2-self.env.physics.height())**2 * self.state_wgt
+        cost = (2-self.env.physics.height())**2 * self.state_wgt  # squared distance from vertical position of 2
+        # cost = (2-self.state[0])**2 * self.state_wgt  # squared distance from horizontal position of 2
         self.state = original_state  # return to original state
         return cost
 
