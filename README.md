@@ -5,11 +5,33 @@ This repo contains implementations of several **reinforcement learning** algorit
   - Monte Carlo Learning
   - Approximate Dynamic Programming
   - Exact Dynamic Programming
-- [`dm_control`](https://github.com/deepmind/dm_control): physics-based simulations for continuous control tasks.
+- `DQN`: physics-based simulations for continuous control tasks.
   - [DQN](https://www.nature.com/articles/nature14236)
   - [Double DQN](https://arxiv.org/abs/1509.06461)
+- `iLQR'`
 
 # demos
 - [gridworld demo](https://colab.research.google.com/github/richard-warren/rl_sandbox/blob/master/gridworld_demo.ipynb)
-- [dm_control demo](https://colab.research.google.com/github/richard-warren/rl_sandbox/blob/master/dm_control_demo.ipynb)
+- [DQN demo](https://colab.research.google.com/github/richard-warren/rl_sandbox/blob/master/dqn_demo.ipynb)
+- [iLQR demo](https://colab.research.google.com/github/richard-warren/rl_sandbox/blob/master/ilqr_demo.ipynb)
 
+# ilqr demo
+- iLQR (in principle)
+  - overview
+  - math
+  - algorithm
+
+- iLQR (in practice)
+  - implementation
+    - start with pm, fast // move to dm
+    - wrappers for dm_control, cost engineering, state, etc.
+    - alpha line search
+    - finite differences for all, although analytically tractable
+    - no inverse computation
+    - speed improvements: avoid off-diagonal computation
+    - can compare expected and actual
+    - regularization schedule
+  - experiments
+    - point mass [simple, force field, dm_control]
+    - reacher [adding control costs]
+    - walker stand [show controls are non-trivial]

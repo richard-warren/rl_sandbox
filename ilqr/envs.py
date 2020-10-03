@@ -104,7 +104,7 @@ class PointMass(Env):
     """ point mass in plane with target. cost is distant to target """
 
     def __init__(self, dt=.05, arena_size=(1,1), mass=1, max_time=10, initial_state=[0,0,0,0],
-                 field_freq=6, field_wgt=1e-1, control_wgt=1e-4, state_wgt=1):
+                 field_freq=6, field_wgt=0, control_wgt=1e-4, state_wgt=1):
         self.mass = mass
         self.dt = dt
         self.xlim = (-arena_size[0]/2, arena_size[0]/2)
