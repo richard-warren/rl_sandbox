@@ -1,3 +1,4 @@
+from tqdm import tqdm
 import numpy as np
 
 
@@ -13,25 +14,32 @@ def iLQR(env, iterations=100,
         ):
 
     # initial trajectory
+    env.reset(reset_target=False)
     a = initial_action
     actions = [np.random.uniform([-initial_action]*env.action_dim, [initial_action]*env.action_dim)
                for i in range(env.max_steps)]
     states, costs, costs_derivs = env.rollout(actions)
+    state_derivs = [env.state_derivs(s,a) for s,a in zip(states, actions)]
     history = dict(cost=[sum(costs)], reg=[reg])
+    flag = ''
 
+    # print column headers
     if verbose:
         headers = '{:12.12}{:12.12}{:12.12}{:12.12}{:12.12}{:12.12}{:12.12}'.format(
             'iteration', 'cost', 'dcost', 'expected', 'reg', 'status', 'max_action')
         print(headers, '\n' + ''.join(['-']*len(headers)))
 
+    # optimize!
     for i in tqdm(range(iterations)) if not verbose else range(iterations):
 
         # differentiate trajectory
-        states, costs, costs_derivs = env.rollout(actions)
-        state_derivs = [env.state_derivs(s,a) for s,a in zip(states, actions)]
+        # (only recompute if actions have changed since last iteration, i.e. if flat=='decreased')
+        if flag=='decreased':
+            states, costs, costs_derivs = env.rollout(actions)
+            state_derivs = [env.state_derivs(s,a) for s,a in zip(states, actions)]
 
         # backward pass
-        # (compute new control rules k and K)
+        # (compute control modifications k and K)
         complete = False
         while not complete:
             k, K = [], []
@@ -40,8 +48,9 @@ def iLQR(env, iterations=100,
             V_xx = costs_derivs[-1]['l_xx']
 
             for t in range(env.max_steps-1, -1, -1):
-                l, f = costs_derivs[t], state_derivs[t]
 
+                # quadratic cost approximation coefficients
+                l, f = costs_derivs[t], state_derivs[t]
                 Q_x  = l['l_x']  + f['f_x'].T @ V_x
                 Q_u  = l['l_u']  + f['f_u'].T @ V_x
                 Q_xx = l['l_xx'] + f['f_x'].T @ V_xx @ f['f_x']
@@ -49,7 +58,7 @@ def iLQR(env, iterations=100,
                 Q_ux = l['l_ux'] + f['f_u'].T @ V_xx @ f['f_x']
 
                 # compute controls k and K
-                Q_uu = .5 * (Q_uu + Q_uu.T)  # make sure perfectely symmetric by averaging off-diagonals
+                Q_uu = .5 * (Q_uu + Q_uu.T)  # make sure perfectely symmetric
                 Q_uu_reg = Q_uu + np.diag(np.repeat(reg, len(Q_u)))
 
                 try:
@@ -58,7 +67,7 @@ def iLQR(env, iterations=100,
                     k.append(-np.linalg.solve(L.T, np.linalg.solve(L, Q_u)))
                     K.append(-np.linalg.solve(L.T, np.linalg.solve(L, Q_ux)))
                 except np.linalg.LinAlgError:
-                    # increase regularization
+                    # increase regularization if Q_uu non-positive definite
                     dreg = max(dreg_factor, dreg_factor*dreg)
                     reg = max(reg*dreg, reg_lims[0])
                     complete = False
@@ -68,14 +77,14 @@ def iLQR(env, iterations=100,
                 dV += alpha**2*.5 * k[-1].T @ Q_uu @ k[-1] + alpha*k[-1].T @ Q_u  # expected cost reduction
                 V_x  = Q_x  + K[-1].T @ Q_uu @ k[-1] + K[-1].T @ Q_u  + Q_ux.T @ k[-1]
                 V_xx = Q_xx + K[-1].T @ Q_uu @ K[-1] + K[-1].T @ Q_ux + Q_ux.T @ K[-1]
-                V_xx = .5 * (V_xx + V_xx.T)  # make sure perfectely symmetric by averaging off-diagonals
+                V_xx = .5 * (V_xx + V_xx.T)  # make sure perfectely symmetric
                 complete = True
 
         k.reverse()
         K.reverse()
 
         # forward pass
-        # (compute new trajectory with new control law)
+        # (compute new trajectory with control modifications k and K)
         costs_new, actions_new = [], []
         env.reset(reset_target=False)
 
@@ -88,19 +97,19 @@ def iLQR(env, iterations=100,
         history['cost'].append(sum(costs_new))
         delta_cost = sum(costs_new) - sum(costs)
 
-        # increase regularization
+        # decide whether to keep new actions
+
+        # increase regularization if cost increased
         if delta_cost>=0:
             dreg = max(dreg_factor, dreg_factor*dreg)
             reg = max(reg*dreg, reg_lims[0])
             flag = 'increased'
 
-        # decrease regularization
+        # decrease regularization and update actions if cost decreased
         else:
             dreg = min(1/dreg_factor, dreg/dreg_factor)
             reg *= dreg * (reg > reg_lims[0])  # latter term sets reg=0 if reg<=reg_lims[0]
             flag = 'decreased'
-
-            # update actions
             actions = actions_new.copy()
 
         history['reg'].append(reg)
