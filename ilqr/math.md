@@ -1,7 +1,5 @@
 # iLQR ( in principle)
 
-
-
 ### the idea
 In **optimal control** we seek to control a system such that some cost function is minimized. [Some consider this an attractive model for biological motor control](https://homes.cs.washington.edu/~todorov/papers/TodorovNatNeurosci02.pdf) because it helps resolve difficulties associated with the redundancy of biomechanical systems. There are infinitely many ways to solve the same task (e.g. reaching to a target); by casting this as an optimization problem we can "simply" minimize some cost function (e.g. distance to target). This framework predicts that variability will persist along dimensions irrelevant to the cost function, a prediction [that has some experimental support](https://homes.cs.washington.edu/~todorov/papers/TodorovNatNeurosci02.pdf).
 
@@ -103,7 +101,7 @@ $$
 
 iLQR ignores the second derivatives of $\mathbf{f}$ (the final terms in lines 3-5 above), which will speed things up a lot when using finite differences for derivative calculations. Differential dynamic programming uses all the terms.
 
-Importantly, computing $Q$ at a given time requires knowing $V$ at subsequent times. We will therefore work backwards from the final state, relying on the fact that $V_{\mathbf{x}}$ and $V_{\mathbf{xx}}$ can be easily computed for the final state. But how do we find the $V$ terms? Plugging $(4)$ into $(3)$ we get the following (`todo: try this out for yourself...`):
+Importantly, computing $Q$ at a given time requires knowing $V$ at subsequent times. We will therefore work backwards from the final state, relying on the fact that $V_{\mathbf{x}}$ and $V_{\mathbf{xx}}$ can be easily computed for the final state. But how do we find the $V$ terms? Plugging $(4)$ into $(3)$ we get the following:
 
 $$
 \begin{align}
@@ -113,19 +111,38 @@ V_\mathbf{xx} &= Q_\mathbf{xx} - \frac{1}{2} Q_\mathbf{xu}^\intercal Q_\mathbf{u
 \end{align}
 $$
 
-$\bigtriangleup V$ is the change in the value we should expect *if our quadratic approximation is accurate*. This is nice, because we can compare the expected and actual cost reduction during the optimization and use it to guide our regularization strategy. 
+$\bigtriangleup V$ is the change in the value we should expect *if our quadratic approximation is accurate*. This is nice, because we can compare the expected and actual cost reduction during the optimization and use it to guide our regularization strategy. Proving the above equations was a little tedious, but here is the work. The trick is to set $\mathbf{\delta x}=\mathbf{\delta u}=0$ at the end, because this is the point around which our quadratic model is constructed:
+
+![](V_proof.jpg)
 
 #### regularization
-but wait! what if we can't invert! regularize by adding off diagonal terms. amounts to quadratic costs on control deviations. when the algo is going well (cost decreasing) we can reduce regulization and act more aggresively. when going poorly (cost increasing OR non-pd (invertable???)) we increase it. explain how this trades off between gauss newton and gradient descent.
+The control update $(4)$ uses information about the curvature of $Q$ stored in $Q_\mathbf{uu}$. However, if $Q_\mathbf{uu}$ is non-positive definite then the update may not be in a [descent direction](https://en.wikipedia.org/wiki/Descent_direction). We will therefore regularize $Q_\mathbf{uu}$ by adding to it's diagonal entries:
 
-there's a nice interpretation of this reg method // in gradient descent we move in the (opposite) direciton of the gradient, which is akin to moving in the direction of a first order approximation // gauss newton uses quadratic approx // by taking into account second deriv we can converge faster
+$$ \tilde{Q}_\mathbf{uu} = Q_\mathbf{uu} + \mu \mathbf{I} $$
 
 
+The amount of regularization, \mu, will depend on how the optimization is going. When the cost is decreasing we will decrease regularization, and when the cost in increasing (or when $Q_\mathbf{uu}$ is non-PD) we will increase regularization (this is the [Levenberg-Marquardt heuristic](https://en.wikipedia.org/wiki/Levenberg%E2%80%93Marquardt_algorithm#Choice_of_damping_parameter)). The regularization term effectively interpolates between Gauss-Newton optimization - which uses curvature information - and gradient descent. To see this we can rewrite $(4)$ using $\tilde{Q}_\mathbf{uu}$ instead of $Q_\mathbf{uu}$:
 
+$$  -(Q_\mathbf{uu} + \mu \mathbf{I}) \mathbf{\delta u} = Q_{\mathbf{u}} + Q_{\mathbf{ux}}\mathbf{\delta x} $$
+
+As $\mu$ is increased, the feed-forward component of $\mathbf{\delta u}$ is in the opposite direction of the gradient. Importantly, using $\tilde{Q}_\mathbf{uu}$ affects the formulae for $V$. Updated versions of these can be found [here (equations 11)](https://www.google.com/search?q=synthesis+and+stabilization+of+complex+behaviors&oq=synthesis&aqs=chrome.0.69i59j69i57j0l5j69i61.1106j0j4&sourceid=chrome&ie=UTF-8.)
 
 ### the algorithm
+Putting everything togeher, we are left with the following algorithm:
+1. **Compute derivatives** for states and costs along the current trajectory ($\ell_\mathbf{x}, \ell_\mathbf{u}, \ell_\mathbf{xx}, \ell_\mathbf{ux}, \ell_\mathbf{uu}, \mathbf{f_x}, \mathbf{f_u}$). We will need them to compute $Q$ and $V$ in the next step.
+2. **Work backwards** from the final time step, at each step computing the control modifications $\mathbf{k}$, $\mathbf{K}$, in addition to $V_\mathbf{x}, V_\mathbf{xx}$.
+3. **Compute a new trajectory** using the modified control law. If the cost decreased, keep the new control sequence and decrease regularization; otherwise increase regularization and try the backward pass again.
 
-so where does that leave us? we start with some sequence of actions, and we want to find tweaks to that sequence that are optimal wrt our approximation of the cost function. computing those tweaks requires .... so we
-1. compute derivates along trajectory along with states
-2. work backwords, at each time compute ... using previous derivs and V estimates from previous timestep, k and K
-3. apply k and K to generate new trajcetory. keep or lose and modify reg as necessary
+# iLQR (in practice)
+- **Algorithm**: I implemented iLQR as described in [this paper](https://homes.cs.washington.edu/~todorov/papers/TassaICRA14.pdf) (except for some differences described below). Yuval Tassa's [MATLAB code](https://www.mathworks.com/matlabcentral/fileexchange/52069-ilqg-ddp-trajectory-optimization) was a very useful reference. [This Python implementation](https://github.com/studywolf/control/blob/master/studywolf_control/controllers/ilqr.py) was also a useful reference, although it lacked some bells and whistles from the paper.
+
+- **Tasks:**  For fast troubleshooting I started with a custom task in which a point-mass is moved to a target. I then solved a few tasks in the [`dm_control suite`](https://github.com/deepmind/dm_control): point-mass, reacher, and hopper.
+I built wrappers for these evnironments, which allowed me to replace the reward functions with cost functions more amenable to iLQR.
+
+- **Differentiation:** To make the algorithm applicable to complex cost functions and dynamics I computed all derivatives use [finite differences], although some derivatives could have been computed analytically for some tasks (e.g. point-mass).
+
+- **Matrix inversion:** Solving for $Q_\mathbf{uu}^{-1}$ directly is computationally very expense. It is better to solve linear systems for $\mathbf{k}$ and $\mathbf{K}$, e.g. use `numpy.linalg.solve()` on $-Q_\mathbf{uu}\mathbf{k} = Q_\mathbf{u}$. Even better, we can first perform a [Cholesky decomposition](https://en.wikipedia.org/wiki/Cholesky_decomposition) on $Q_\mathbf{uu}$, then solve two linear systems, as described in the notes [here](https://numpy.org/doc/stable/reference/generated/numpy.linalg.cholesky.html).
+
+- **$\alpha$ line search:** The original paper uses an additional regularization parameter $\alpha$ that linearly interpolates between the full update and intermediate updates by scaling the feed-forward term: $\hat{\mathbf{u}} = \mathbf{u} + \alpha \mathbf{k} + \mathbf{K \delta x}$. They also use a clever scheme to update $\alpha$ based on the ratio between expected and observed cost reductions. I only used $\alpha$ as a fixed term, and found $\alpha=1$ to work for all experiments presented here.
+
+- **Regularization schedule:** For updated the regularization parameter $\mu$ I used the quadratic modification schedule described in section II.F [here](https://homes.cs.washington.edu/~todorov/papers/TassaIROS12.pdf).
