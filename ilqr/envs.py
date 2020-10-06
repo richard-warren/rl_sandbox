@@ -84,7 +84,7 @@ class Env:
         return dict(l_x=l_x, l_xx=l_xx)
 
     @staticmethod
-    def finite_differences(fcn, x, eps=1e-1):  # eps > 1e-1 failed for hopper standing...
+    def finite_differences(fcn, x, eps=1e-1):  # this is quite large, but eps > 1e-1 failed for hopper standing...
         """ estimate gradient of fcn wrt x v fia finite differences """
         # todo: vectorize (assuming fcn is vectorized)
         diffs = []
@@ -235,10 +235,24 @@ class DmControl(Env):
 class Arm(DmControl):
     """ wrapper from dm_control `reacher` """
 
-    def __init__(self, **kwargs):
+    def __init__(self, spiral=0, target_start=None, **kwargs):
         """ see DmControl constructor for keyword arguments """
         initial_state = [np.pi/2,0,0,0]
-        super().__init__('reacher', 'hard', initial_state, max_steps=200, n_sub_steps=2, **kwargs)
+        self.spiral = spiral
+        self.t = 0
+        super().__init__('reacher', 'hard', initial_state,
+            max_steps=40 if spiral==0 else 200, n_sub_steps=2, **kwargs)
+        if target_start is not None:
+            self.target_start = target_start
+            target = target_start
+
+    def step(self, action):
+        state = super().step(action)
+        if self.spiral>0:
+            self.t += self.dt
+            growth = (self.t/(self.max_steps*self.dt)) * self.spiral
+            self.target += np.array((np.sin(self.t*2*np.pi), -np.sin(self.t*2*np.pi+np.pi/2))) * growth
+        return state
 
     @property
     def target(self):
@@ -271,10 +285,12 @@ class Arm(DmControl):
 
     def reset(self, reset_target=True):
         """ reset state (target position randomized but arm set to default state) """
-        original_target = self.target
+        self.t = 0
         self.env.reset()
         if not reset_target:
-            self.target = original_target
+            self.target = self.target_start
+        else:
+            self.target_start = self.target
         self.state = self.initial_state
         return self.state
 
@@ -332,7 +348,7 @@ class Hopper(DmControl):
 
     def __init__(self, **kwargs):
         """ see DmControl constructor for keyword arguments """
-        initial_state = np.array([0,-.06,0,0,0,0,0,0,0,0,0,0,0,0], dtype='float64')  # feet moved down close to the floor to minimize the 'drop'
+        initial_state = np.array([0,-.06,0,0,0,0,0,0,0,0,0,0,0,0], dtype='float64')  # move feet down close to the floor to minimize the initial 'drop'
         super().__init__('hopper', 'hop', initial_state, max_steps=25, n_sub_steps=8, **kwargs)
 
     def cost(self, state, action):

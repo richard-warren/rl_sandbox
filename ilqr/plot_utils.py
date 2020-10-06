@@ -37,11 +37,17 @@ def show_rollout(env, actions):
 def plot_training(env, actions, history):
     ax = plt.subplots(1, 3, figsize=(14,4))[1];
 
-    ax[0].plot(history['cost']); ax[0].set_title('cost');
+    ax[0].plot(history['cost'], color='tab:blue', linewidth=3);
+    ax[0].set_title('cost', fontweight='bold');
     ax[0].set_xlabel('iteration'); ax[0].set_ylabel('cost')
+    ax[0].spines['right'].set_visible(False)
+    ax[0].spines['top'].set_visible(False)
 
-    ax[1].plot(history['reg']);  ax[1].set_title('regularization');
+    ax[1].plot(history['reg'], color='tab:blue', linewidth=3);
+    ax[1].set_title('regularization', fontweight='bold');
     ax[1].set_xlabel('iteration'); ax[1].set_ylabel('regularization')
+    ax[1].spines['right'].set_visible(False)
+    ax[1].spines['top'].set_visible(False)
 
     env.reset(reset_target=False)
     [env.step(action) for action in actions]
